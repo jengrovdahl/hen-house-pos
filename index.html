@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Hen House &amp; Co. POS v3</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.js"></script>
@@ -25,7 +26,7 @@ input,select,textarea,button{font-family:inherit;}
  *  Sales + Refunds, Coupons (% and $), Gift Cards/Vouchers, Expenses + Receipt Photos, Reports, Settings + Square API
  */
 const {useState,useEffect,useCallback,useRef}=React;
-const BarChart=()=>null,Bar=()=>null,XAxis=()=>null,YAxis=()=>null,Tooltip=()=>null,ResponsiveContainer=({children})=>children;
+const {BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer}=Recharts;
 const G='#2D5C1A',GLT='#EAF2E4',A='#C47A0F',ALT='#FFF4D6',CREAM='#FAF7EF',SURF='#FFF',SALT='#F0EBE0',TX='#1C1710',MUT='#7A6A52',BOR='#DCCFB8',RED='#B53B2E',REDLT='#FDECEA',PUR='#6B3FA0';
 const MN_TAX=0.07375;
 const SCHED_C=["Advertising","Car & Truck","Contract Labor","Cost of Goods Sold","Equipment / Depreciation","Insurance","Interest","Office Expenses","Rent / Lease","Repairs & Maintenance","Supplies","Taxes & Licenses","Travel","Meals (50%)","Utilities","Wages","Other"];
@@ -52,10 +53,49 @@ const f$=n=>`$${(+n||0).toFixed(2)}`;
 const fDate=d=>{try{return new Date(d+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d;}};
 const effPrice=p=>{if(!p.salePrice)return+p.price;const t=today();if((!p.saleStart||t>=p.saleStart)&&(!p.saleEnd||t<=p.saleEnd))return+p.salePrice;return+p.price;};
 const isOnSale=p=>effPrice(p)<+p.price;
+const SUPA_URL="https://jzzourafdmrgwimvfysk.supabase.co";
+const SUPA_KEY="sb_publishable_fZeGsOUG8V9qqxnYJk9djA_zcagYtx4";
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY);
+
+// Table name mapping for keys
+function keyToTable(k){
+  if(k.startsWith('hhc_prods'))return'products';
+  if(k.startsWith('hhc_sales'))return'sales';
+  if(k.startsWith('hhc_exp'))return'expenses';
+  if(k.startsWith('hhc_coupons'))return'coupons';
+  if(k.startsWith('hhc_gc'))return'gift_cards';
+  if(k.startsWith('hhc_settings'))return'settings';
+  if(k.startsWith('hhc_pnd_'))return'pending_sq';
+  return null;
+}
+
 const MEM={};
-async function sg(k,fb){try{if(window.storage){const r=await window.storage.get(k);return r?JSON.parse(r.value):fb;}return MEM[k]!==undefined?MEM[k]:fb;}catch{return fb;}}
-async function ss(k,v){try{if(window.storage)await window.storage.set(k,JSON.stringify(v));else MEM[k]=v;}catch{}}
-async function sd(k){try{if(window.storage)await window.storage.delete(k);else delete MEM[k];}catch{}}
+async function sg(k,fb){
+  try{
+    const tbl=keyToTable(k);
+    if(!tbl)return MEM[k]!==undefined?MEM[k]:fb;
+    const id=k.startsWith('hhc_pnd_')?k:'main';
+    const {data,error}=await supa.from(tbl).select('data').eq('id',id).single();
+    if(error||!data)return fb;
+    return data.data;
+  }catch{return fb;}
+}
+async function ss(k,v){
+  try{
+    const tbl=keyToTable(k);
+    if(!tbl){MEM[k]=v;return;}
+    const id=k.startsWith('hhc_pnd_')?k:'main';
+    await supa.from(tbl).upsert({id,data:v});
+  }catch{MEM[k]=v;}
+}
+async function sd(k){
+  try{
+    const tbl=keyToTable(k);
+    if(!tbl){delete MEM[k];return;}
+    const id=k.startsWith('hhc_pnd_')?k:'main';
+    await supa.from(tbl).delete().eq('id',id);
+  }catch{delete MEM[k];}
+}
 async function launchSq(payload,settings){
   const pid=uid();await ss('hhc_pnd_'+pid,payload);
   const base=(settings.appUrl||window.location.origin+window.location.pathname).replace(/\?.*$/,'');
