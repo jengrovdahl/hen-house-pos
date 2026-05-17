@@ -8,7 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -26,7 +25,7 @@ input,select,textarea,button{font-family:inherit;}
  *  Sales + Refunds, Coupons (% and $), Gift Cards/Vouchers, Expenses + Receipt Photos, Reports, Settings + Square API
  */
 const {useState,useEffect,useCallback,useRef}=React;
-const {BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer}=Recharts;
+const BarChart=()=>null,Bar=()=>null,XAxis=()=>null,YAxis=()=>null,Tooltip=()=>null,ResponsiveContainer=({children})=>children;
 const G='#2D5C1A',GLT='#EAF2E4',A='#C47A0F',ALT='#FFF4D6',CREAM='#FAF7EF',SURF='#FFF',SALT='#F0EBE0',TX='#1C1710',MUT='#7A6A52',BOR='#DCCFB8',RED='#B53B2E',REDLT='#FDECEA',PUR='#6B3FA0';
 const MN_TAX=0.07375;
 const SCHED_C=["Advertising","Car & Truck","Contract Labor","Cost of Goods Sold","Equipment / Depreciation","Insurance","Interest","Office Expenses","Rent / Lease","Repairs & Maintenance","Supplies","Taxes & Licenses","Travel","Meals (50%)","Utilities","Wages","Other"];
