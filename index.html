@@ -86,10 +86,11 @@ async function sd(k){
 }
 async function launchSq(payload,settings){
   const pid=uid();
-  const callbackUrl='https://jengrovdahl.github.io/hen-house-pos/?pid='+pid;
+  const callbackUrl='https://jengrovdahl.github.io/hen-house-pos/';
   const data={client_id:settings.squareAppId,amount_money:{amount:Math.round(payload.total*100),currency_code:'USD'},callback_url:callbackUrl,version:'1.3',notes:settings.bizName||'Hen House & Co',options:{supported_tender_types:['CREDIT_CARD','SQUARE_GIFT_CARD','CASH','OTHER']}};
   const url='square-commerce-v1://payment/create?data='+encodeURIComponent(JSON.stringify(data));
   await ss('hhc_pnd_'+pid,payload);
+  await ss('hhc_pnd_latest',{pid});
   try{localStorage.setItem('hhc_sq_pid',pid);}catch(e){}
   window.location.href=url;
 }
@@ -473,7 +474,7 @@ function App(){
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
-  useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('data')||p.get('pid')){try{const pid=p.get('pid')||localStorage.getItem('hhc_sq_pid')||'';try{localStorage.removeItem('hhc_sq_pid');}catch(e){}if(pid)setPendingSq({squareData:p.get('data')||'',pendingId:pid});window.history.replaceState({},'',window.location.pathname);}catch(e){}}},[]);
+  useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('data')){(async()=>{try{let pid=localStorage.getItem('hhc_sq_pid')||'';if(!pid){const latest=await sg('hhc_pnd_latest',null);pid=latest?.pid||'';}try{localStorage.removeItem('hhc_sq_pid');}catch(e){}if(pid)setPendingSq({squareData:p.get('data'),pendingId:pid});window.history.replaceState({},'',window.location.pathname);}catch(e){}})();}},[]);
   useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
