@@ -86,7 +86,7 @@ async function sd(k){
 }
 async function launchSq(payload,settings){
   const pid=uid();
-  const base=(settings.appUrl||window.location.origin+window.location.pathname).replace(/\?.*$/,'');
+  const base=(settings.appUrl||window.location.origin+window.location.pathname).replace(/\?.*$/,'').replace(/\/$/,'');
   const data={client_id:settings.squareAppId,amount_money:{amount:Math.round(payload.total*100),currency_code:'USD'},callback_url:base+'?square_cb=1&pid='+pid,version:'1.3',notes:settings.bizName||'Hen House & Co',options:{supported_tender_types:['CREDIT_CARD','DEBIT_CARD','SQUARE_GIFT_CARD']}};
   const url='square-commerce-v1://payment/create?data='+encodeURIComponent(JSON.stringify(data));
   await ss('hhc_pnd_'+pid,payload);
