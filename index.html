@@ -89,9 +89,9 @@ async function launchSq(payload,settings){
   const callbackUrl='https://jengrovdahl.github.io/hen-house-pos/';
   const data={client_id:settings.squareAppId,amount_money:{amount:Math.round(payload.total*100),currency_code:'USD'},callback_url:callbackUrl,version:'1.3'};
   const url='square-commerce-v1://payment/create?data='+encodeURIComponent(JSON.stringify(data));
-  await ss('hhc_pnd_'+pid,payload);
+  const pendingPayload={...payload,status:'launched',pid};
+  await ss('hhc_pnd_'+pid,pendingPayload);
   await ss('hhc_pnd_latest',{pid});
-  try{localStorage.setItem('hhc_sq_pid',pid);}catch(e){}
   window.location.href=url;
 }
 function applyCoupon(coupons,code,sub){
@@ -447,6 +447,20 @@ function SettingsPage({settings,setSettings,showToast}){
     React.createElement(Btn,{onClick:()=>{setSettings(f);showToast('Settings saved!');},size:'lg',ch:'💾 Save Settings'}),React.createElement('div',{style:{marginTop:20,background:SALT,border:'1px solid '+BOR,borderRadius:12,padding:16}},React.createElement('div',{style:{fontSize:13,fontWeight:800,color:MUT,marginBottom:8}},'🔍 Square Debug — exact payload that will be sent:'),React.createElement('pre',{style:{fontSize:11,color:TX,whiteSpace:'pre-wrap',wordBreak:'break-all',background:SURF,border:'1px solid '+BOR,borderRadius:8,padding:10,margin:0}},JSON.stringify({client_id:f.squareAppId||'⚠️ BLANK - not loaded from Supabase!',amount_money:{amount:100,currency_code:'USD'},callback_url:'https://jengrovdahl.github.io/hen-house-pos/',version:'1.3',notes:f.bizName||'Hen House & Co'},null,2))));
 }
 
+
+function SquareConfirmModal({pendingSq,onConfirm,onCancel}){
+  const sale=pendingSq?.sale||{};
+  const items=sale.items||[];
+  return React.createElement(Modal,{title:'Square Payment — Did it go through?',onClose:onCancel,width:420},
+    React.createElement('div',{style:{background:GLT,borderRadius:10,padding:14,marginBottom:16}},
+      React.createElement('div',{style:{fontSize:15,fontWeight:800,color:G,marginBottom:8}},'⬛ Last Square charge: '+f$(sale.total||0)),
+      items.map((i,idx)=>React.createElement('div',{key:idx,style:{fontSize:13,color:TX}},'• '+i.name+' × '+i.qty))),
+    React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:18}},'Check your Square app — did the payment complete successfully?'),
+    React.createElement('div',{style:{display:'flex',gap:10}},
+      React.createElement(Btn,{onClick:onCancel,color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'✗ No / Cancelled'}),
+      React.createElement(Btn,{onClick:onConfirm,size:'lg',style:{flex:2,justifyContent:'center'},ch:'✓ Yes, Payment Went Through'})));
+}
+
 const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'settings',l:'Settings',e:'⚙️'}];
 const MORE_IDS=['coupons','giftcards','expenses','reports','settings'];
 
@@ -474,7 +488,7 @@ function App(){
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
-  useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('data')){(async()=>{try{let pid=localStorage.getItem('hhc_sq_pid')||'';if(!pid){const latest=await sg('hhc_pnd_latest',null);pid=latest?.pid||'';}try{localStorage.removeItem('hhc_sq_pid');}catch(e){}if(pid)setPendingSq({squareData:p.get('data'),pendingId:pid});window.history.replaceState({},'',window.location.pathname);}catch(e){}})();}},[]);
+  useEffect(()=>{if(!ready)return;(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();},[ready]);
   useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
@@ -482,7 +496,7 @@ function App(){
   useEffect(()=>{if(ready)ss('hhc_settings',settings);},[settings,ready]);
   useEffect(()=>{if(ready)ss('hhc_coupons',coupons);},[coupons,ready]);
   useEffect(()=>{if(ready)ss('hhc_gc',giftCards);},[giftCards,ready]);
-  useEffect(()=>{if(!ready||!pendingSq)return;(async()=>{const{squareData,pendingId}=pendingSq;const sale=await sg('hhc_pnd_'+pendingId,null);if(sale){try{const res=JSON.parse(atob(squareData));if(res.status==='ok'){completeSale({...sale,squareTxId:res.transaction_id});showToast('Card payment confirmed!');}else showToast('Payment cancelled');}catch{showToast('Square error');}await sd('hhc_pnd_'+pendingId);}setPendingSq(null);})();},[ready,pendingSq]);
+  // pendingSq confirmation handled by SquareConfirmModal
   const showToast=msg=>setToast(msg);const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const completeSale=useCallback((saleData)=>{
     const cartItems=saleData.items||cart;
@@ -504,7 +518,10 @@ function App(){
       React.createElement('div',{style:{flex:1,overflow:'auto'}},renderPage())),
     mobile&&React.createElement(BottomNav,{page,setPage,cartCount,sqOk}),
     checkout&&cart.length>0&&React.createElement(CheckoutModal,{cart,settings,coupons,giftCards,onComplete:d=>{completeSale({...d,items:cart});setCart([]);setCheckout(false);},onClose:()=>setCheckout(false)}),
-    toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}));
+    toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}),
+    pendingSq&&React.createElement(SquareConfirmModal,{pendingSq,
+      onConfirm:async()=>{const{pendingId,sale}=pendingSq;completeSale({...sale,method:'Card (Square)'});await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);showToast('Square payment recorded!');},
+      onCancel:async()=>{const{pendingId}=pendingSq;await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);}})));
 }
 ReactDOM.render(React.createElement(App),document.getElementById('root'));
 </script>
