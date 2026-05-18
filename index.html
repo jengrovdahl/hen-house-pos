@@ -159,13 +159,26 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
       React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:SURF,borderRadius:'20px 20px 0 0',maxHeight:'85vh',overflow:'auto',display:'flex',flexDirection:'column'}},React.createElement(CartPanel))));
 }
 
+const MN_LOCATIONS=[
+  {name:'Blooming Prairie (Steele Co.)',rate:0.07375},
+  {name:'Austin (Mower Co.)',rate:0.07375},
+  {name:'Rochester (Olmsted Co.)',rate:0.07875},
+  {name:'Owatonna (Steele Co.)',rate:0.07375},
+  {name:'Faribault (Rice Co.)',rate:0.07375},
+  {name:'Northfield (Rice/Dakota Co.)',rate:0.07375},
+  {name:'Minneapolis (Hennepin Co.)',rate:0.08025},
+  {name:'St. Paul (Ramsey Co.)',rate:0.08125},
+  {name:'Other MN (State only)',rate:0.06875},
+];
 function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
   const [method,setMethod]=useState('Cash');const [cash,setCash]=useState('');const [notes,setNotes]=useState('');
   const [code,setCode]=useState('');const [cr,setCr]=useState(null);const [gcName,setGcName]=useState('');
   const [taxOn,setTaxOn]=useState(true);const [launching,setLaunching]=useState(false);
+  const [locIdx,setLocIdx]=useState(0);
+  const taxRate=MN_LOCATIONS[locIdx].rate;
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
   const hasTaxItems=cart.some(i=>i.taxable);
-  const taxAmt=taxOn&&hasTaxItems?cart.reduce((s,i)=>s+(i.taxable?i.ep*i.qty*MN_TAX:0),0):0;
+  const taxAmt=taxOn&&hasTaxItems?cart.reduce((s,i)=>s+(i.taxable?(i.ep*i.qty-(i.ep*i.qty/(1+taxRate))):0),0):0;
   const cd=cr?.ok?cr.disc:0;const total=Math.max(0,sub+taxAmt-cd);
   const change=method==='Cash'?Math.max(0,(parseFloat(cash)||0)-total):0;
   const sqOk=!!settings.squareAppId;
@@ -187,6 +200,7 @@ function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
       React.createElement('div',{style:{flex:1}},React.createElement(Inp,{value:code,onChange:setCode,placeholder:'Coupon code...'})),
       React.createElement(Btn,{onClick:()=>setCr(applyCoupon(coupons,code,sub)),ch:'Apply',size:'sm',color:PUR})),
     cr&&React.createElement('div',{style:{fontSize:13,fontWeight:700,color:cr.ok?G:RED,marginBottom:10,padding:'6px 10px',background:cr.ok?GLT:REDLT,borderRadius:8}},cr.msg),
+    React.createElement(Fld,{label:'Market Location'},React.createElement(Sel,{value:locIdx,onChange:v=>setLocIdx(+v),options:MN_LOCATIONS.map((l,i)=>({value:i,label:l.name+' ('+(l.rate*100).toFixed(3)+'%)'}))})),
     React.createElement(Fld,{label:'Payment Method'},React.createElement(Sel,{value:method,onChange:setMethod,options:PAY_METHODS})),
     method==='Cash'&&React.createElement('div',null,
       React.createElement(Fld,{label:'Cash Tendered'},React.createElement(Inp,{value:cash,onChange:setCash,type:'number',placeholder:f$(total)})),
