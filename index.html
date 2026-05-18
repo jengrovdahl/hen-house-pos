@@ -231,7 +231,11 @@ function ProductModal({prod,onSave,onClose}){
 
 function ProductsPage({products,setProducts,showToast}){
   const [editing,setEditing]=useState(null);const [cf,setCf]=useState('All');
-  const cats=['All',...PROD_CATS];const filtered=products.filter(p=>cf==='All'||p.cat===cf);
+  const [search,setSearch]=useState('');const [sort,setSort]=useState('az');
+  const cats=['All',...PROD_CATS];
+  const filtered=products
+    .filter(p=>(cf==='All'||p.cat===cf)&&(!search||p.name.toLowerCase().includes(search.toLowerCase())))
+    .sort((a,b)=>sort==='az'?a.name.localeCompare(b.name):sort==='za'?b.name.localeCompare(a.name):sort==='lo'?effPrice(a)-effPrice(b):effPrice(b)-effPrice(a));
   const save=p=>{if(p.id)setProducts(prev=>prev.map(x=>x.id===p.id?p:x));else setProducts(prev=>[...prev,{...p,id:uid(),active:true}]);setEditing(null);showToast('Product saved');};
   const del=id=>{if(confirm('Delete?')){setProducts(prev=>prev.filter(p=>p.id!==id));}};
   const tog=id=>setProducts(prev=>prev.map(p=>p.id===id?{...p,active:!p.active}:p));
@@ -239,7 +243,10 @@ function ProductsPage({products,setProducts,showToast}){
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Product Catalog'),
       React.createElement(Btn,{onClick:()=>setEditing({name:'',cat:PROD_CATS[0],price:'',cost:'',taxable:false,stock:'',emoji:'🛍️',salePrice:'',saleStart:'',saleEnd:''}),ch:'+ Add Product'})),
-    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14,overflowX:'auto'}},cats.map(c=>React.createElement('button',{key:c,onClick:()=>setCf(c),style:{padding:'5px 14px',borderRadius:20,border:'none',cursor:'pointer',background:cf===c?G:SALT,color:cf===c?'#fff':MUT,fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}},c))),
+    RC('div',{style:{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
+      RC(Inp,{value:search,onChange:setSearch,placeholder:'Search products...',style:{maxWidth:220}}),
+      RC(Sel,{value:sort,onChange:setSort,options:[{value:'az',label:'A → Z'},{value:'za',label:'Z → A'},{value:'lo',label:'Price: Low → High'},{value:'hi',label:'Price: High → Low'}]})),
+    RC('div',{style:{display:'flex',gap:8,marginBottom:14,overflowX:'auto'}},cats.map(c=>RC('button',{key:c,onClick:()=>setCf(c),style:{padding:'5px 14px',borderRadius:20,border:'none',cursor:'pointer',background:cf===c?G:SALT,color:cf===c?'#fff':MUT,fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}},c))),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}},
       filtered.map(p=>{const onSale=isOnSale(p);return React.createElement('div',{key:p.id,style:{background:SURF,border:`1px solid ${onSale?RED:BOR}`,borderRadius:12,padding:14,opacity:p.active?1:.55}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}},
