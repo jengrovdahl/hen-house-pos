@@ -519,9 +519,7 @@ function App(){
     mobile&&React.createElement(BottomNav,{page,setPage,cartCount,sqOk}),
     checkout&&cart.length>0&&React.createElement(CheckoutModal,{cart,settings,coupons,giftCards,onComplete:d=>{completeSale({...d,items:cart});setCart([]);setCheckout(false);},onClose:()=>setCheckout(false)}),
     toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}),
-    pendingSq&&React.createElement(SquareConfirmModal,{pendingSq,
-      onConfirm:async()=>{const{pendingId,sale}=pendingSq;completeSale({...sale,method:'Card (Square)'});await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);showToast('Square payment recorded!');},
-      onCancel:async()=>{const{pendingId}=pendingSq;await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);}})));
+    pendingSq&&React.createElement(SquareConfirmModal,{pendingSq,onConfirm:async()=>{const{pendingId,sale}=pendingSq;completeSale({...sale,method:'Card (Square)'});await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);showToast('Square payment recorded!');},onCancel:async()=>{const{pendingId}=pendingSq;await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);}}));
 }
 ReactDOM.render(React.createElement(App),document.getElementById('root'));
 </script>
