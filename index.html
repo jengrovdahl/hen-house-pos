@@ -444,7 +444,7 @@ function SettingsPage({settings,setSettings,showToast}){
       React.createElement('div',{style:{fontSize:15,fontWeight:800,color:TX,marginBottom:14}},'Business Info'),
       React.createElement(Fld,{label:'Business Name'},React.createElement(Inp,{value:f.bizName,onChange:v=>sv('bizName',v),placeholder:'Hen House & Co'})),
       React.createElement(Fld,{label:'MN Sales Tax Rate (%)'},React.createElement(Inp,{value:f.taxRate,onChange:v=>sv('taxRate',v),type:'number',placeholder:'7.375'}),React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'MN 6.875% + Steele Co 0.5% = 7.375%'))),
-    React.createElement(Btn,{onClick:()=>{setSettings(f);showToast('Settings saved!');},size:'lg',ch:'💾 Save Settings'}),React.createElement('div',{style:{marginTop:20,background:SALT,border:'1px solid '+BOR,borderRadius:12,padding:16}},React.createElement('div',{style:{fontSize:13,fontWeight:800,color:MUT,marginBottom:8}},'🔍 Square Debug — exact payload that will be sent:'),React.createElement('pre',{style:{fontSize:11,color:TX,whiteSpace:'pre-wrap',wordBreak:'break-all',background:SURF,border:'1px solid '+BOR,borderRadius:8,padding:10,margin:0}},JSON.stringify({client_id:f.squareAppId||'⚠️ BLANK - not loaded from Supabase!',amount_money:{amount:100,currency_code:'USD'},callback_url:'https://jengrovdahl.github.io/hen-house-pos/',version:'1.3',notes:f.bizName||'Hen House & Co'},null,2))));
+    React.createElement(Btn,{onClick:()=>{setSettings(f);showToast('Settings saved!');},size:'lg',ch:'💾 Save Settings'}));
 }
 
 
