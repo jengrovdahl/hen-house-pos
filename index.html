@@ -488,7 +488,38 @@ function App(){
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
-  useEffect(()=>{if(!ready)return;(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();},[ready]);
+  useEffect(()=>{
+  const p=new URLSearchParams(window.location.search);
+  const sqData=p.get('data');
+  if(sqData){
+    // This is the callback tab Square opened - process and close
+    window.history.replaceState({},'',window.location.pathname);
+    (async()=>{
+      try{
+        const latest=await sg('hhc_pnd_latest',null);
+        if(latest?.pid){
+          const sale=await sg('hhc_pnd_'+latest.pid,null);
+          if(sale?.status==='launched'){
+            const res=JSON.parse(atob(sqData));
+            if(res.status==='ok'){
+              completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});
+              await sd('hhc_pnd_'+latest.pid);
+              await sd('hhc_pnd_latest');
+            }
+          }
+        }
+      }catch(e){}
+      try{window.close();}catch(e){}
+    })();
+  } else if(ready){
+    (async()=>{
+      try{
+        const latest=await sg('hhc_pnd_latest',null);
+        if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}
+      }catch(e){}
+    })();
+  }
+},[ready]);
   useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
