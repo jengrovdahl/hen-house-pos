@@ -501,10 +501,24 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
           const ws=wb.Sheets[wb.SheetNames[0]];
           const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
           const keywords=['date','description','amount','subtotal','total','items','name','price'];
-          const headerIdx=raw.findIndex(r=>r.some(cell=>keywords.some(k=>String(cell||'').toLowerCase().includes(k))));
+          const headerIdx=raw.findIndex(r=>r.some(cell=>keywords.some(k=>String(cell||'').replace(/\n/g,' ').toLowerCase().includes(k))));
           if(headerIdx===-1){setErrors(['Could not find header row. Make sure you are using the correct template.']);return;}
+          // Normalize headers — strip newlines, collapse whitespace
+          const headers=raw[headerIdx].map(h=>String(h||'').replace(/\n/g,' ').replace(/\s+/g,' ').trim());
           const dataRows=raw.slice(headerIdx+1).filter(r=>r.some(cell=>cell!==''&&cell!=null));
-          parsed=dataRows.map(row=>raw[headerIdx].reduce((o,h,i)=>{o[String(h||'').trim()]=String(row[i]!=null?row[i]:'').trim();return o;},{})).filter(r=>Object.values(r).some(v=>v));
+          // Convert Excel serial dates to YYYY-MM-DD strings
+          const excelDateToStr=v=>{
+            if(!v)return '';
+            if(v instanceof Date)return v.toISOString().slice(0,10);
+            if(typeof v==='number'){const d=new Date(Math.round((v-25569)*86400*1000));return d.toISOString().slice(0,10);}
+            return String(v).trim();
+          };
+          parsed=dataRows.map(row=>headers.reduce((o,h,i)=>{
+            const raw_val=row[i];
+            // Convert dates in date column
+            const val=h.toLowerCase().includes('date')?excelDateToStr(raw_val):(raw_val!=null?String(raw_val).trim():'');
+            o[h]=val;return o;
+          },{})).filter(r=>Object.values(r).some(v=>v));
         }catch(err){setErrors(['Could not read file: '+err.message]);return;}
       } else {
         const{rows:csvRows}=parseCSV(ev.target.result);
@@ -514,14 +528,16 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
       const errs=[];
       const mapped=parsed.map((r,i)=>{
         if(type==='sales'){
-          const date=r['Date (YYYY-MM-DD)']||r['Date']||'';
-          const itemsRaw=r['Items (name×qty, name×qty)']||r['Items']||'';
-          const total=parseFloat(r['Total ($)']||r['Total']||0);
-          const sub=parseFloat(r['Subtotal ($)']||r['Subtotal']||0);
-          const tax=parseFloat(r['Tax Amount ($)']||r['Tax Amount']||0);
-          const disc=parseFloat(r['Discount ($)']||r['Discount']||0);
-          const pay=r['Payment Method']||r['Payment']||'Cash';
-          const notes=r['Notes / Market Location']||r['Notes']||'';
+          const rk=k=>Object.keys(r).find(h=>h.toLowerCase().includes(k.toLowerCase()))||'';
+          const rv=k=>r[rk(k)]||'';
+          const date=rv('date');
+          const itemsRaw=rv('items');
+          const total=parseFloat(rv('total')||0);
+          const sub=parseFloat(rv('subtotal')||0);
+          const tax=parseFloat(rv('tax')||0);
+          const disc=parseFloat(rv('discount')||0);
+          const pay=rv('payment')||'Cash';
+          const notes=rv('notes');
           if(!date||!total)errs.push('Row '+(i+2)+': missing date or total');
           const items=itemsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(s=>{
             const parts=s.split('×');
@@ -529,12 +545,14 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
           });
           return{date,items,subtotal:sub,taxAmt:tax,discount:disc,total,payMethod:pay,notes};
         } else if(type==='expenses'){
-          const date=r['Date (YYYY-MM-DD)']||r['Date']||'';
-          const desc=r['Description']||'';
-          const amount=parseFloat(r['Amount ($)']||r['Amount']||0);
-          const cat=r['Schedule C Category']||r['Category']||'Other';
-          const vendor=r['Vendor']||'';
-          const notes=r['Notes']||'';
+          const rk=k=>Object.keys(r).find(h=>h.toLowerCase().includes(k.toLowerCase()))||'';
+          const rv=k=>r[rk(k)]||'';
+          const date=rv('date');
+          const desc=rv('description');
+          const amount=parseFloat(rv('amount')||0);
+          const cat=rv('category')||rv('schedule')||'Other';
+          const vendor=rv('vendor');
+          const notes=rv('notes');
           if(!date||!desc||!amount)errs.push('Row '+(i+2)+': missing date, description, or amount');
           return{date,description:desc,amount,cat,vendor,notes};
         } else {
