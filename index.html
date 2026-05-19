@@ -586,7 +586,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
 
   return React.createElement('div',{style:{padding:16,maxWidth:700}},
     React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",marginBottom:4}},'Import Data'),
-    React.createElement('p',{style:{fontSize:13,color:MUT,marginBottom:20}},'Upload a CSV file to import historical data. Download a template to see the required format.'),
+    React.createElement('p',{style:{fontSize:13,color:MUT,marginBottom:20}},'Upload a CSV or Excel (.xlsx) file to import historical data. Download a template to get started.'),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}},
       typeOpts.map(t=>React.createElement('button',{key:t.v,onClick:()=>{setType(t.v);setRows([]);setErrors([]);setImported(false);},style:{padding:'14px 10px',borderRadius:12,border:`2px solid ${type===t.v?G:BOR}`,background:type===t.v?GLT:SURF,cursor:'pointer',textAlign:'center'}},
@@ -596,7 +596,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
 
     React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20}},
       React.createElement(Btn,{onClick:dlTemplate,color:MUT,outline:true,ch:'⬇ Download Template'}),
-      React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload CSV'}),
+      React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload File'}),
       React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.xlsx,.xls,.txt',onChange:handleFile,style:{display:'none'}})),
 
     errors.length>0&&React.createElement('div',{style:{background:REDLT,border:`1px solid ${RED}`,borderRadius:10,padding:14,marginBottom:16}},
