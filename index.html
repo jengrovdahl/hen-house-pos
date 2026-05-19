@@ -591,14 +591,13 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
   };
 
   const doImport=()=>{
-    console.log('doImport called, rows:',rows.length,'type:',type,'setSales:',typeof setSales);
-    try{
-    if(type==='sales'){setSales(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
-    else if(type==='expenses'){setExpenses(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
+    const toImport=skipDups?rows.filter((_,i)=>!dupIdxs.includes(i)):rows;
+    if(type==='sales'){setSales(prev=>[...prev,...toImport.map(r=>({...r,id:uid()}))]);}
+    else if(type==='expenses'){setExpenses(prev=>[...prev,...toImport.map(r=>({...r,id:uid()}))]);}
     else{
       setProducts(prev=>{
         const updated=[...prev];
-        rows.forEach(r=>{
+        toImport.forEach(r=>{
           const existing=updated.find(p=>p.name.toLowerCase()===r.name.toLowerCase());
           if(existing){Object.assign(existing,{price:r.price,cost:r.cost,taxable:r.taxable,stock:r.stock,emoji:r.emoji,cat:r.cat});}
           else{updated.push({...r,id:uid()});}
@@ -606,11 +605,9 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
         return updated;
       });
     }
-    const count=(!forceAll&&skipDups)?rows.filter((_,i)=>!dupIdxs.includes(i)).length:rows.length;
+    showToast(toImport.length+' records imported!');
     setImported(true);
-    showToast(count+' records imported!');
     setRows([]);setDupIdxs([]);
-    }catch(e){console.error('doImport error:',e);alert('Import error: '+e.message);}
   };
 
   const dlTemplate=()=>{
