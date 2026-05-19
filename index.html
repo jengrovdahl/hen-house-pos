@@ -457,7 +457,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
           } else {
             setOcrStatus('⚠️ Could not read receipt — fill in manually');
           }
-        }catch(e){setOcrStatus('⚠️ OCR failed — fill in manually');}
+        }catch(e){setOcrStatus('⚠️ '+e.message);}
       }
     };
     reader.readAsDataURL(file);
