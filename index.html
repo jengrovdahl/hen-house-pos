@@ -591,6 +591,8 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
   };
 
   const doImport=()=>{
+    console.log('doImport called, rows:',rows.length,'type:',type,'setSales:',typeof setSales);
+    try{
     if(type==='sales'){setSales(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
     else if(type==='expenses'){setExpenses(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
     else{
@@ -608,6 +610,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
     setImported(true);
     showToast(count+' records imported!');
     setRows([]);setDupIdxs([]);
+    }catch(e){console.error('doImport error:',e);alert('Import error: '+e.message);}
   };
 
   const dlTemplate=()=>{
