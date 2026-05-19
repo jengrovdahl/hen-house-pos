@@ -494,8 +494,23 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
     setRows([]);setErrors([]);setImported(false);
     const reader=new FileReader();
     reader.onload=ev=>{
-      const text=ev.target.result;
-      const{rows:parsed}=parseCSV(text);
+      let parsed=[];
+      if(isXlsx){
+        try{
+          const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+          const keywords=['date','description','amount','subtotal','total','items','name','price'];
+          const headerIdx=raw.findIndex(r=>r.some(cell=>keywords.some(k=>String(cell||'').toLowerCase().includes(k))));
+          if(headerIdx===-1){setErrors(['Could not find header row. Make sure you are using the correct template.']);return;}
+          const dataRows=raw.slice(headerIdx+1).filter(r=>r.some(cell=>cell!==''&&cell!=null));
+          parsed=dataRows.map(row=>raw[headerIdx].reduce((o,h,i)=>{o[String(h||'').trim()]=String(row[i]!=null?row[i]:'').trim();return o;},{})).filter(r=>Object.values(r).some(v=>v));
+        }catch(err){setErrors(['Could not read file: '+err.message]);return;}
+      } else {
+        const{rows:csvRows}=parseCSV(ev.target.result);
+        parsed=csvRows;
+      }
+      if(!parsed.length){setErrors(['No data rows found. Fill in at least one row before importing.']);setRows([]);return;}
       const errs=[];
       const mapped=parsed.map((r,i)=>{
         if(type==='sales'){
