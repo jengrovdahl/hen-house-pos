@@ -444,6 +444,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
       const mimeType=file.type||'image/jpeg';
       sv('receipt',{name:file.name,data:dataUrl,type:file.type});
       if(mimeType.startsWith('image/')||mimeType==='application/pdf'){
+        if(!settings?.anthropicKey){alert('Add your Anthropic API key in Settings first.');return;}
         setOcrStatus('🤖 Reading receipt...');
         try{
           const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'');
