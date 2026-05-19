@@ -62,7 +62,6 @@ function keyToTable(k){
 }
 
 async function ocrReceipt(imageData,mimeType,apiKey){
-  alert('Calling Anthropic... key starts with: '+apiKey.slice(0,15));
   const resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -72,10 +71,9 @@ async function ocrReceipt(imageData,mimeType,apiKey){
     ]}]})
   });
   const data=await resp.json();
-  alert('API response: '+JSON.stringify(data).slice(0,300));
   const text=data.content?.[0]?.text||'';
   try{return JSON.parse(text.replace(/```json|```/g,'').trim());}
-  catch(e){alert('JSON parse error: '+e.message+' text was: '+text.slice(0,200));return null;}
+  catch(e){return null;}
 }
 const MEM={};
 async function sg(k,fb){
@@ -458,10 +456,9 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
             if(result.category)sv('cat',result.category);
             setOcrStatus('✓ Receipt scanned — review and adjust below');
           } else {
-            alert('OCR returned null — API response may be error');
             setOcrStatus('⚠️ Could not read receipt — fill in manually');
           }
-        }catch(e){alert('OCR error: '+e.message+' / '+e.toString());setOcrStatus('⚠️ '+e.message);}
+        }catch(e){setOcrStatus('⚠️ '+e.message);}
       }
     };
     reader.readAsDataURL(file);
