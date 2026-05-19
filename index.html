@@ -492,6 +492,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
   const handleFile=e=>{
     const file=e.target.files[0];if(!file)return;
     setRows([]);setErrors([]);setImported(false);
+    const isXlsx=file.name.match(/\.xlsx?$/i);
     const reader=new FileReader();
     reader.onload=ev=>{
       let parsed=[];
