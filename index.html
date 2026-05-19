@@ -528,15 +528,17 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
       const errs=[];
       const mapped=parsed.map((r,i)=>{
         if(type==='sales'){
-          const rk=k=>Object.keys(r).find(h=>h.toLowerCase().includes(k.toLowerCase()))||'';
+          const rk=k=>{const keys=Object.keys(r);return keys.find(h=>h.toLowerCase()===k.toLowerCase())||keys.find(h=>h.toLowerCase().startsWith(k.toLowerCase()))||keys.find(h=>h.toLowerCase().includes(k.toLowerCase()))||'';};
           const rv=k=>r[rk(k)]||'';
           const date=rv('date');
+          // Skip if date looks like a header label
+          if(date&&date.toLowerCase().includes('yyyy'))return null;
           const itemsRaw=rv('items');
-          const total=parseFloat(rv('total')||0);
-          const sub=parseFloat(rv('subtotal')||0);
-          const tax=parseFloat(rv('tax')||0);
-          const disc=parseFloat(rv('discount')||0);
-          const pay=rv('payment')||'Cash';
+          const total=parseFloat(rv('total ($)')||rv('total')||0);
+          const sub=parseFloat(rv('subtotal ($)')||rv('subtotal')||0);
+          const tax=parseFloat(rv('tax amount ($)')||rv('tax')||0);
+          const disc=parseFloat(rv('discount ($)')||rv('discount')||0);
+          const pay=rv('payment method')||rv('payment')||'Cash';
           const notes=rv('notes');
           if(!date||!total)errs.push('Row '+(i+2)+': missing date or total');
           const items=itemsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(s=>{
