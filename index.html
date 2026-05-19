@@ -55,6 +55,7 @@ function keyToTable(k){
   if(k.startsWith('hhc_gc'))return'gift_cards';
   if(k.startsWith('hhc_mileage'))return'mileage';
   if(k.startsWith('hhc_routes'))return'saved_routes';
+  if(k.startsWith('hhc_raw'))return'raw_goods';
   if(k.startsWith('hhc_settings'))return'settings';
   if(k.startsWith('hhc_pnd_'))return'pending_sq';
   return null;
@@ -928,8 +929,90 @@ function MileagePage({mileage,setMileage,savedRoutes,setSavedRoutes,settings,sho
         React.createElement(Btn,{onClick:add,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save Trip'}))));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'settings',l:'Settings',e:'⚙️'}];
-const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','settings'];
+
+function RawGoodsPage({rawGoods,setRawGoods,showToast}){
+  const blank={name:'',unit:'',qty:'',lowAt:1,notes:''};
+  const [show,setShow]=useState(false);
+  const [editing,setEditing]=useState(null);
+  const [f,setF]=useState(blank);
+  const sv=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const UNIT_SUGGESTIONS=['25lb bag','50lb bag','5lb bag','1lb bag','case','jug','box','roll','bundle','each','dozen','gallon'];
+
+  const save=()=>{
+    if(!f.name||f.qty==='')return;
+    if(editing){
+      setRawGoods(prev=>prev.map(g=>g.id===editing?{...g,...f,qty:+f.qty,lowAt:+f.lowAt}:g));
+      showToast('Updated!');
+    } else {
+      setRawGoods(prev=>[...prev,{...f,id:uid(),qty:+f.qty,lowAt:+f.lowAt}]);
+      showToast('Item added!');
+    }
+    setF(blank);setShow(false);setEditing(null);
+  };
+
+  const adjust=(id,delta)=>setRawGoods(prev=>prev.map(g=>g.id===id?{...g,qty:Math.max(0,g.qty+delta)}:g));
+  const del=id=>{if(confirm('Delete this item?'))setRawGoods(prev=>prev.filter(g=>g.id!==id));};
+
+  const low=rawGoods.filter(g=>g.qty<=g.lowAt);
+  const ok=rawGoods.filter(g=>g.qty>g.lowAt);
+
+  return React.createElement('div',{style:{padding:16,maxWidth:800}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Raw Goods & Supplies'),
+      React.createElement(Btn,{onClick:()=>{setF(blank);setEditing(null);setShow(true);},ch:'+ Add Item'})),
+
+    low.length>0&&React.createElement('div',{style:{background:REDLT,border:`1px solid ${RED}`,borderRadius:10,padding:14,marginBottom:16}},
+      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED,marginBottom:8}},'🔴 Low / Out of Stock ('+low.length+' item'+(low.length>1?'s':'')+')'),
+      low.map(g=>React.createElement('div',{key:g.id,style:{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:`1px solid ${BOR}`}},
+        React.createElement('div',{style:{flex:1}},
+          React.createElement('span',{style:{fontSize:14,fontWeight:700,color:TX}},g.name),
+          g.unit&&React.createElement('span',{style:{fontSize:12,color:MUT,marginLeft:6}},'('+g.unit+')'),
+          g.notes&&React.createElement('div',{style:{fontSize:11,color:MUT}},g.notes)),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+          React.createElement('button',{onClick:()=>adjust(g.id,-1),disabled:g.qty<=0,style:{width:28,height:28,borderRadius:6,border:`1px solid ${BOR}`,background:SURF,cursor:'pointer',fontSize:16,fontWeight:700,color:MUT,opacity:g.qty<=0?.4:1}},'−'),
+          React.createElement('span',{style:{fontWeight:800,fontSize:16,color:g.qty===0?RED:A,minWidth:32,textAlign:'center'}},g.qty),
+          React.createElement('button',{onClick:()=>adjust(g.id,1),style:{width:28,height:28,borderRadius:6,border:'none',background:G,cursor:'pointer',fontSize:16,color:'#fff',fontWeight:700}},'+'),
+          React.createElement('button',{onClick:()=>{setF({...g,qty:String(g.qty),lowAt:String(g.lowAt)});setEditing(g.id);setShow(true);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:15,padding:'0 4px'}},'✏️'),
+          React.createElement('button',{onClick:()=>del(g.id),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:15,padding:'0 4px'}},'🗑️'))))),
+
+    rawGoods.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No items yet. Add your first raw good or supply!'):
+    ok.length>0&&React.createElement('div',null,
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}},'In Stock'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:10}},
+        ok.map(g=>React.createElement('div',{key:g.id,style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:14}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}},
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontSize:14,fontWeight:700,color:TX}},g.name),
+              g.unit&&React.createElement('div',{style:{fontSize:11,color:MUT}},g.unit),
+              g.notes&&React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:2}},g.notes)),
+            React.createElement('div',{style:{display:'flex',gap:4}},
+              React.createElement('button',{onClick:()=>{setF({...g,qty:String(g.qty),lowAt:String(g.lowAt)});setEditing(g.id);setShow(true);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:15}},'✏️'),
+              React.createElement('button',{onClick:()=>del(g.id),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:15}},'🗑️'))),
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,justifyContent:'space-between'}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              React.createElement('button',{onClick:()=>adjust(g.id,-1),disabled:g.qty<=0,style:{width:28,height:28,borderRadius:6,border:`1px solid ${BOR}`,background:SURF,cursor:'pointer',fontSize:16,fontWeight:700,color:MUT,opacity:g.qty<=0?.4:1}},'−'),
+              React.createElement('span',{style:{fontWeight:800,fontSize:20,color:G,minWidth:32,textAlign:'center'}},g.qty),
+              React.createElement('button',{onClick:()=>adjust(g.id,1),style:{width:28,height:28,borderRadius:6,border:'none',background:G,cursor:'pointer',fontSize:16,color:'#fff',fontWeight:700}},'+'))),
+          React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:6}},'Alert when ≤ '+g.lowAt))))),
+
+    show&&React.createElement(Modal,{title:editing?'Edit Item':'Add Raw Good / Supply',onClose:()=>{setShow(false);setEditing(null);setF(blank);},width:420},
+      React.createElement(Fld,{label:'Item Name'},React.createElement(Inp,{value:f.name,onChange:v=>sv('name',v),placeholder:'e.g. All-Purpose Flour, Skittles, Freeze Dryer Bags'})),
+      React.createElement(Fld,{label:'Unit / Size (optional)'},
+        React.createElement(Inp,{value:f.unit,onChange:v=>sv('unit',v),placeholder:'e.g. 25lb bag, case of 100, jug'}),
+        React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}},
+          UNIT_SUGGESTIONS.map(u=>React.createElement('button',{key:u,onClick:()=>sv('unit',u),style:{padding:'3px 8px',borderRadius:12,border:`1px solid ${BOR}`,background:f.unit===u?GLT:SURF,color:f.unit===u?G:MUT,fontSize:11,cursor:'pointer',fontWeight:700}},u)))),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+        React.createElement(Fld,{label:'Qty on Hand'},React.createElement(Inp,{value:f.qty,onChange:v=>sv('qty',v),type:'number',placeholder:'0'})),
+        React.createElement(Fld,{label:'Low Stock Alert (qty)'},React.createElement(Inp,{value:f.lowAt,onChange:v=>sv('lowAt',v),type:'number',placeholder:'1'}))),
+      React.createElement(Fld,{label:'Notes (optional)'},React.createElement(Inp,{value:f.notes,onChange:v=>sv('notes',v),placeholder:'e.g. Buy at Sam\'s Club, aisle 4'})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
+        React.createElement(Btn,{onClick:()=>{setShow(false);setEditing(null);setF(blank);},color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:save,size:'lg',style:{flex:2,justifyContent:'center'},ch:editing?'Save Changes':'Add Item'}))));
+}
+
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'settings',l:'Settings',e:'⚙️'}];
+const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
   return React.createElement('div',{style:{width:190,background:G,display:'flex',flexDirection:'column',flexShrink:0,minHeight:'100%'}},
@@ -960,13 +1043,14 @@ function App(){
   const [coupons,setCoupons]=useState([]);const [giftCards,setGiftCards]=useState([]);const [settings,setSettings]=useState(DEF_S);
   const [mileage,setMileage]=useState([]);
   const [savedRoutes,setSavedRoutes]=useState([]);
+  const [rawGoods,setRawGoods]=useState([]);
   const [cart,setCart]=useState([]);const [checkout,setCheckout]=useState(false);
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setReady(true);}load();},[]);
+  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
@@ -975,6 +1059,7 @@ function App(){
   useEffect(()=>{if(ready)ss('hhc_gc',giftCards);},[giftCards,ready]);
   useEffect(()=>{if(ready)ss('hhc_mileage',mileage);},[mileage,ready]);
   useEffect(()=>{if(ready)ss('hhc_routes',savedRoutes);},[savedRoutes,ready]);
+  useEffect(()=>{if(ready)ss('hhc_raw',rawGoods);},[rawGoods,ready]);
   // pendingSq confirmation handled by SquareConfirmModal
   const showToast=msg=>setToast(msg);const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const completeSale=useCallback((saleData)=>{
@@ -988,8 +1073,8 @@ function App(){
   },[cart,giftCards]);
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
-  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,settings,setSettings,showToast,isMobile:mobile};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
