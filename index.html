@@ -461,8 +461,154 @@ function SquareConfirmModal({pendingSq,onConfirm,onCancel}){
       React.createElement(Btn,{onClick:onConfirm,size:'lg',style:{flex:2,justifyContent:'center'},ch:'✓ Yes, Payment Went Through'})));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'settings',l:'Settings',e:'⚙️'}];
-const MORE_IDS=['coupons','giftcards','expenses','reports','settings'];
+
+function ImportPage({products,setProducts,setSales,setExpenses,showToast}){
+  const [type,setType]=useState('sales');
+  const [rows,setRows]=useState([]);
+  const [errors,setErrors]=useState([]);
+  const [imported,setImported]=useState(false);
+  const fileRef=useRef();
+
+  const PROD_TEMPLATE="id,name,cat,price,cost,taxable,stock,emoji\n,Air Bites,Freeze Dried Candy,5,1.20,true,20,🍬\n,3lb Honey Jug,Honey,20,0,false,10,🍯";
+  const SALES_TEMPLATE="Date (YYYY-MM-DD),Items (name×qty, name×qty),Subtotal ($),Tax Amount ($),Discount ($),Total ($),Payment Method,Notes / Market Location\n2025-06-14,Air Bites×2,10,0.74,0,10.74,Cash,BP Market";
+  const EXP_TEMPLATE="Date (YYYY-MM-DD),Description,Amount ($),Schedule C Category,Vendor,Notes\n2024-03-15,Freeze dryer bags,45,Supplies,Amazon,";
+
+  const parseCSV=(text)=>{
+    const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(lines.length<2)return{headers:[],rows:[]};
+    const headers=lines[0].split(',').map(h=>h.trim());
+    const rows=lines.slice(1).map(l=>{
+      const vals=[];let cur='';let inQ=false;
+      for(let ch of l){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}else cur+=ch;}
+      vals.push(cur.trim());
+      return headers.reduce((o,h,i)=>{o[h]=vals[i]||'';return o;},{});
+    }).filter(r=>Object.values(r).some(v=>v));
+    return{headers,rows};
+  };
+
+  const handleFile=e=>{
+    const file=e.target.files[0];if(!file)return;
+    setRows([]);setErrors([]);setImported(false);
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const text=ev.target.result;
+      const{rows:parsed}=parseCSV(text);
+      const errs=[];
+      const mapped=parsed.map((r,i)=>{
+        if(type==='sales'){
+          const date=r['Date (YYYY-MM-DD)']||r['Date']||'';
+          const itemsRaw=r['Items (name×qty, name×qty)']||r['Items']||'';
+          const total=parseFloat(r['Total ($)']||r['Total']||0);
+          const sub=parseFloat(r['Subtotal ($)']||r['Subtotal']||0);
+          const tax=parseFloat(r['Tax Amount ($)']||r['Tax Amount']||0);
+          const disc=parseFloat(r['Discount ($)']||r['Discount']||0);
+          const pay=r['Payment Method']||r['Payment']||'Cash';
+          const notes=r['Notes / Market Location']||r['Notes']||'';
+          if(!date||!total)errs.push('Row '+(i+2)+': missing date or total');
+          const items=itemsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(s=>{
+            const parts=s.split('×');
+            return{name:parts[0]?.trim()||s,qty:parseInt(parts[1])||1,emoji:'🛍️'};
+          });
+          return{date,items,subtotal:sub,taxAmt:tax,discount:disc,total,payMethod:pay,notes};
+        } else if(type==='expenses'){
+          const date=r['Date (YYYY-MM-DD)']||r['Date']||'';
+          const desc=r['Description']||'';
+          const amount=parseFloat(r['Amount ($)']||r['Amount']||0);
+          const cat=r['Schedule C Category']||r['Category']||'Other';
+          const vendor=r['Vendor']||'';
+          const notes=r['Notes']||'';
+          if(!date||!desc||!amount)errs.push('Row '+(i+2)+': missing date, description, or amount');
+          return{date,description:desc,amount,cat,vendor,notes};
+        } else {
+          const name=r['name']||'';
+          const price=parseFloat(r['price']||0);
+          const cost=parseFloat(r['cost']||0);
+          const cat=r['cat']||'Honey';
+          const taxable=r['taxable']==='true'||r['taxable']==='1';
+          const stock=parseInt(r['stock']||0);
+          const emoji=r['emoji']||'🛍️';
+          if(!name)errs.push('Row '+(i+2)+': missing name');
+          return{name,price,cost,cat,taxable,stock,emoji,active:true,salePrice:'',saleStart:'',saleEnd:''};
+        }
+      }).filter(Boolean);
+      setErrors(errs);
+      setRows(mapped);
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  };
+
+  const doImport=()=>{
+    if(type==='sales'){setSales(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
+    else if(type==='expenses'){setExpenses(prev=>[...prev,...rows.map(r=>({...r,id:uid()}))]);}
+    else{
+      setProducts(prev=>{
+        const updated=[...prev];
+        rows.forEach(r=>{
+          const existing=updated.find(p=>p.name.toLowerCase()===r.name.toLowerCase());
+          if(existing){Object.assign(existing,{price:r.price,cost:r.cost,taxable:r.taxable,stock:r.stock,emoji:r.emoji,cat:r.cat});}
+          else{updated.push({...r,id:uid()});}
+        });
+        return updated;
+      });
+    }
+    setImported(true);
+    showToast(rows.length+' records imported!');
+    setRows([]);
+  };
+
+  const dlTemplate=()=>{
+    const tmpl=type==='sales'?SALES_TEMPLATE:type==='expenses'?EXP_TEMPLATE:PROD_TEMPLATE;
+    const b=new Blob([tmpl],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download='HenHouse_'+type+'_template.csv';a.click();
+  };
+
+  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'}];
+
+  return React.createElement('div',{style:{padding:16,maxWidth:700}},
+    React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",marginBottom:4}},'Import Data'),
+    React.createElement('p',{style:{fontSize:13,color:MUT,marginBottom:20}},'Upload a CSV file to import historical data. Download a template to see the required format.'),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}},
+      typeOpts.map(t=>React.createElement('button',{key:t.v,onClick:()=>{setType(t.v);setRows([]);setErrors([]);setImported(false);},style:{padding:'14px 10px',borderRadius:12,border:`2px solid ${type===t.v?G:BOR}`,background:type===t.v?GLT:SURF,cursor:'pointer',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:22,marginBottom:4}},t.l.split(' ')[0]),
+        React.createElement('div',{style:{fontSize:13,fontWeight:800,color:type===t.v?G:TX}},t.l.split(' ')[1]),
+        React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:2}},t.desc)))),
+
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20}},
+      React.createElement(Btn,{onClick:dlTemplate,color:MUT,outline:true,ch:'⬇ Download Template'}),
+      React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload CSV'}),
+      React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.txt',onChange:handleFile,style:{display:'none'}})),
+
+    errors.length>0&&React.createElement('div',{style:{background:REDLT,border:`1px solid ${RED}`,borderRadius:10,padding:14,marginBottom:16}},
+      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED,marginBottom:6}},'⚠️ '+errors.length+' issue(s) found — rows with errors will be skipped:'),
+      errors.map((e,i)=>React.createElement('div',{key:i,style:{fontSize:12,color:RED}},e))),
+
+    rows.length>0&&!imported&&React.createElement('div',null,
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+        React.createElement('div',{style:{fontSize:14,fontWeight:800,color:TX}},rows.length+' rows ready to import'),
+        React.createElement(Btn,{onClick:doImport,ch:'✓ Import '+rows.length+' Records',size:'lg'})),
+      React.createElement('div',{style:{overflowX:'auto',maxHeight:320,overflow:'auto',border:`1px solid ${BOR}`,borderRadius:10}},
+        React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          React.createElement('thead',null,
+            React.createElement('tr',{style:{background:SALT}},
+              Object.keys(rows[0]).slice(0,type==='products'?6:5).map(k=>React.createElement('th',{key:k,style:{padding:'8px 10px',textAlign:'left',fontWeight:700,color:MUT,whiteSpace:'nowrap',borderBottom:`1px solid ${BOR}`}},k)))),
+          React.createElement('tbody',null,
+            rows.slice(0,20).map((r,i)=>React.createElement('tr',{key:i,style:{borderBottom:`1px solid ${BOR}`}},
+              Object.values(r).slice(0,type==='products'?6:5).map((v,j)=>React.createElement('td',{key:j,style:{padding:'7px 10px',color:TX,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},
+                typeof v==='object'?JSON.stringify(v):String(v)))))))),
+      rows.length>20&&React.createElement('div',{style:{fontSize:12,color:MUT,padding:'8px 12px'}},`...and ${rows.length-20} more rows`)),
+
+    imported&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:12,padding:20,textAlign:'center'}},
+      React.createElement('div',{style:{fontSize:32,marginBottom:8}},'✅'),
+      React.createElement('div',{style:{fontSize:16,fontWeight:800,color:G}}),'Import complete!',
+      React.createElement('div',{style:{fontSize:13,color:MUT,marginTop:4}},'Your data has been saved. You can import another file below.'),
+      React.createElement('div',{style:{marginTop:14}},React.createElement(Btn,{onClick:()=>setImported(false),color:MUT,outline:true,ch:'Import Another File'}))));
+}
+
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'settings',l:'Settings',e:'⚙️'}];
+const MORE_IDS=['coupons','giftcards','expenses','reports','import','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
   return React.createElement('div',{style:{width:190,background:G,display:'flex',flexDirection:'column',flexShrink:0,minHeight:'100%'}},
@@ -510,7 +656,7 @@ function App(){
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
   const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
