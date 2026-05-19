@@ -42,6 +42,7 @@ const f$=n=>`$${(+n||0).toFixed(2)}`;
 const fDate=d=>{try{return new Date(d+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d;}};
 const effPrice=p=>{if(!p.salePrice)return+p.price;const t=today();if((!p.saleStart||t>=p.saleStart)&&(!p.saleEnd||t<=p.saleEnd))return+p.salePrice;return+p.price;};
 const isOnSale=p=>effPrice(p)<+p.price;
+const OCR_PROXY='https://hen-house-proxy.vercel.app/api/ocr';
 const SUPA_URL="https://jzzourafdmrgwimvfysk.supabase.co";
 const SUPA_KEY="sb_publishable_fZeGsOUG8V9qqxnYJk9djA_zcagYtx4";
 const supa=supabase.createClient(SUPA_URL,SUPA_KEY);
@@ -61,6 +62,20 @@ function keyToTable(k){
   return null;
 }
 
+async function ocrReceipt(imageData,mimeType){
+  const resp=await fetch(OCR_PROXY,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:mimeType,data:imageData}},
+      {type:'text',text:'This is a receipt or expense document. Extract the following as JSON only, no other text: {"date":"YYYY-MM-DD or empty if not found","vendor":"store or vendor name","amount":"total amount as number","description":"brief description of what was purchased","category":"best match from: Advertising, Building / Equipment / Tools, Car & Truck, Contract Labor, Cost of Goods Sold, Insurance, Interest, Livestock, Meals & Entertainment, Membership & Dues, Office Supplies, Rent / Lease, Repairs & Maintenance, Subscriptions, Supplies, Taxes & Licenses, Utilities, Wages, Other"}'}
+    ]}]})
+  });
+  const data=await resp.json();
+  const text=data.content?.[0]?.text||'';
+  try{return JSON.parse(text.replace(/```json|```/g,'').trim());}
+  catch(e){return null;}
+}
 const MEM={};
 async function sg(k,fb){
   try{
@@ -342,6 +357,7 @@ function CouponsPage({coupons,setCoupons,showToast}){
     show&&React.createElement(Modal,{title:f.id?'Edit Coupon':'New Coupon',onClose:()=>setShow(false),width:420},
       React.createElement(Fld,{label:'Code'},React.createElement(Inp,{value:f.code,onChange:v=>sv('code',v.toUpperCase()),placeholder:'SUMMER10'})),
       React.createElement(Fld,{label:'Description (optional)'},React.createElement(Inp,{value:f.desc,onChange:v=>sv('desc',v),placeholder:'Summer sale'})),
+      ocrStatus&&React.createElement('div',{style:{fontSize:13,fontWeight:700,color:ocrStatus.startsWith('✓')?G:ocrStatus.startsWith('🤖')?A:RED,marginBottom:10,padding:'6px 10px',background:ocrStatus.startsWith('✓')?GLT:ocrStatus.startsWith('🤖')?ALT:REDLT,borderRadius:8}},ocrStatus),
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
         React.createElement(Fld,{label:'Type'},React.createElement(Sel,{value:f.type,onChange:v=>sv('type',v),options:[{value:'pct',label:'Percent off (%)'},{value:'amt',label:'Dollar off ($)'}]})),
         React.createElement(Fld,{label:f.type==='pct'?'Percent':'Amount ($)'},React.createElement(Inp,{value:f.value,onChange:v=>sv('value',v),type:'number',placeholder:f.type==='pct'?'10':'5.00'})),
@@ -419,7 +435,35 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
   const [f,setF]=useState(blank);const sv=(k,v)=>setF(p=>({...p,[k]:v}));const fileRef=useRef();
   const total=expenses.reduce((s,e)=>s+e.amount,0);
   const byCat=SCHED_C.map(c=>({c,t:expenses.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0)})).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
-  const handleFile=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>sv('receipt',{name:file.name,data:ev.target.result,type:file.type});reader.readAsDataURL(file);};
+  const [ocrStatus,setOcrStatus]=useState('');
+  const handleFile=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async ev=>{
+      const dataUrl=ev.target.result;
+      const base64=dataUrl.split(',')[1];
+      const mimeType=file.type||'image/jpeg';
+      sv('receipt',{name:file.name,data:dataUrl,type:file.type});
+      if(mimeType.startsWith('image/')||mimeType==='application/pdf'){
+        setOcrStatus('🤖 Reading receipt...');
+        try{
+          const result=await ocrReceipt(base64,mimeType);
+          if(result){
+            if(result.date)sv('date',result.date);
+            if(result.vendor)sv('vendor',result.vendor);
+            if(result.amount)sv('amount',String(result.amount));
+            if(result.description)sv('description',result.description);
+            if(result.category)sv('cat',result.category);
+            setOcrStatus('✓ Receipt scanned — review and adjust below');
+          } else {
+            setOcrStatus('⚠️ Could not read receipt — fill in manually');
+          }
+        }catch(e){setOcrStatus('⚠️ OCR failed — fill in manually');}
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value='';
+  };
   const add=()=>{
     if(!f.description||!f.amount)return;
     setExpenses(prev=>[...prev,{...f,id:uid(),amount:+f.amount}]);
@@ -445,7 +489,16 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
       e.receipt&&React.createElement('button',{onClick:()=>setViewReceipt(e.receipt),style:{background:GLT,border:`1px solid ${G}`,borderRadius:6,cursor:'pointer',padding:'4px 8px',fontSize:12,color:G,fontWeight:700}},'📎 Receipt'),
       React.createElement('div',{style:{fontSize:16,fontWeight:800,color:RED}},f$(e.amount)),
       React.createElement('button',{onClick:()=>del(e.id),style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:4,fontSize:18}},'🗑️'))),
-    show&&React.createElement(Modal,{title:'Add Expense',onClose:()=>setShow(false)},
+    show&&React.createElement(Modal,{title:'Add Expense',onClose:()=>{setShow(false);setOcrStatus('');}},
+      React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:12,marginBottom:14,display:'flex',alignItems:'center',gap:12}},
+        React.createElement('span',{style:{fontSize:22}},'🤖'),
+        React.createElement('div',{style:{flex:1}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G}},'Scan Receipt with AI'),
+          React.createElement('div',{style:{fontSize:11,color:MUT}},'Take a photo or upload a receipt to auto-fill the form')),
+        React.createElement('input',{type:'file',ref:fileRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
+        React.createElement('div',{style:{display:'flex',gap:6}},
+          React.createElement(Btn,{onClick:()=>{fileRef.current.removeAttribute('capture');fileRef.current.click();},color:G,size:'sm',ch:'📎 Upload'}),
+          React.createElement(Btn,{onClick:()=>{fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:G,size:'sm',ch:'📷 Photo'}))),
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
         React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:f.date,onChange:v=>sv('date',v),type:'date'})),
         React.createElement(Fld,{label:'Amount ($)'},React.createElement(Inp,{value:f.amount,onChange:v=>sv('amount',v),type:'number',placeholder:'0.00'})),
