@@ -502,10 +502,9 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
           const ws=wb.Sheets[wb.SheetNames[0]];
           const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
           const keywords=['date','description','amount','subtotal','total','items','name','price'];
-          const headerIdx=raw.findIndex(r=>r.some(cell=>keywords.some(k=>String(cell||'').replace(/\n/g,' ').toLowerCase().includes(k))));
+          const headerIdx=raw.findIndex(r=>{const ne=r.filter(cell=>String(cell||'').trim()!=='');return ne.length>=3&&ne.some(cell=>keywords.some(k=>String(cell||'').replace(/\r\n|\n/g,' ').toLowerCase().includes(k)));});
           if(headerIdx===-1){setErrors(['Could not find header row. Make sure you are using the correct template.']);return;}
-          // Normalize headers — strip newlines, collapse whitespace
-          const headers=raw[headerIdx].map(h=>String(h||'').replace(/\n/g,' ').replace(/\s+/g,' ').trim());
+          const headers=raw[headerIdx].map(h=>String(h||'').replace(/\r\n|\n/g,' ').replace(/\s+/g,' ').trim());
           const dataRows=raw.slice(headerIdx+1).filter(r=>r.some(cell=>cell!==''&&cell!=null));
           // Convert Excel serial dates to YYYY-MM-DD strings
           const excelDateToStr=v=>{
