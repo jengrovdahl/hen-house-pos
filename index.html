@@ -472,7 +472,7 @@ function SquareConfirmModal({pendingSq,onConfirm,onCancel}){
 }
 
 
-function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,showToast}){
+function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mileage=[],setMileage,showToast}){
   const [type,setType]=useState('sales');
   const [rows,setRows]=useState([]);
   const [errors,setErrors]=useState([]);
@@ -482,6 +482,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
   const fileRef=useRef();
 
   const PROD_TEMPLATE="id,name,cat,price,cost,taxable,stock,emoji\n,Air Bites,Freeze Dried Candy,5,1.20,true,20,🍬\n,3lb Honey Jug,Honey,20,0,false,10,🍯";
+  const MILEAGE_TEMPLATE="Date (YYYY-MM-DD),From,To,Miles,Purpose,Notes\n2025-06-14,Blooming Prairie,Austin Farmers Market,46,BP Saturday Market,\n2025-06-21,Blooming Prairie,Owatonna,38,Supply run - Walmart,";
   const SALES_TEMPLATE="Date (YYYY-MM-DD),Items (name×qty, name×qty),Subtotal ($),Tax Amount ($),Discount ($),Total ($),Payment Method,Notes / Market Location\n2025-06-14,Air Bites×2,10,0.74,0,10.74,Cash,BP Market";
   const EXP_TEMPLATE="Date (YYYY-MM-DD),Description,Amount ($),Schedule C Category,Vendor,Notes\n2024-03-15,Freeze dryer bags,45,Supplies,Amazon,";
 
@@ -566,6 +567,20 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
           const notes=rv('notes');
           if(!date||!desc||!amount)errs.push('Row '+(i+2)+': missing date, description, or amount');
           return{date,description:desc,amount,cat,vendor,notes};
+        } else if(type==='mileage'){
+          const rk=k=>{const keys=Object.keys(r);return keys.find(h=>h.toLowerCase()===k.toLowerCase())||keys.find(h=>h.toLowerCase().includes(k.toLowerCase()))||'';};
+          const rv=k=>r[rk(k)]||'';
+          const date=rv('date');
+          if(date&&date.toLowerCase().includes('yyyy'))return null;
+          const miles=parseFloat(rv('miles')||0);
+          const purpose=rv('purpose');
+          const from=rv('from');
+          const to=rv('to');
+          const notes=rv('notes');
+          if(!date||!miles)errs.push('Row '+(i+2)+': missing date or miles');
+          const rate=irsRate(date);
+          const deduction=parseFloat((miles*rate).toFixed(2));
+          return{date,from,to,miles,purpose,notes,rate,deduction};
         } else {
           const name=r['name']||'';
           const price=parseFloat(r['price']||0);
@@ -586,6 +601,9 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
           return isDup?i:-1;
         } else if(type==='expenses'){
           const isDup=expenses.some(e=>e.date===r.date&&e.description===r.description&&+e.amount===+r.amount&&e.vendor===r.vendor);
+          return isDup?i:-1;
+        } else if(type==='mileage'){
+          const isDup=mileage.some(m=>m.date===r.date&&+m.miles===+r.miles&&m.purpose===r.purpose);
           return isDup?i:-1;
         } else {
           return -1; // products: update existing is fine, no dup warning needed
@@ -620,19 +638,19 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
   };
 
   const dlTemplate=()=>{
-    const tmpl=type==='sales'?SALES_TEMPLATE:type==='expenses'?EXP_TEMPLATE:PROD_TEMPLATE;
+    const tmpl=type==='sales'?SALES_TEMPLATE:type==='expenses'?EXP_TEMPLATE:type==='mileage'?MILEAGE_TEMPLATE:PROD_TEMPLATE;
     const b=new Blob([tmpl],{type:'text/csv'});
     const a=document.createElement('a');a.href=URL.createObjectURL(b);
     a.download='HenHouse_'+type+'_template.csv';a.click();
   };
 
-  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'}];
+  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'},{v:'mileage',l:'🚗 Mileage',desc:'Trip mileage log'}];
 
   return React.createElement('div',{style:{padding:16,maxWidth:700}},
     React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",marginBottom:4}},'Import Data'),
     React.createElement('p',{style:{fontSize:13,color:MUT,marginBottom:20}},'Upload a CSV or Excel (.xlsx) file to import historical data. Download a template to get started.'),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}},
       typeOpts.map(t=>React.createElement('button',{key:t.v,onClick:()=>{setType(t.v);setRows([]);setErrors([]);setImported(false);},style:{padding:'14px 10px',borderRadius:12,border:`2px solid ${type===t.v?G:BOR}`,background:type===t.v?GLT:SURF,cursor:'pointer',textAlign:'center'}},
         React.createElement('div',{style:{fontSize:22,marginBottom:4}},t.l.split(' ')[0]),
         React.createElement('div',{style:{fontSize:13,fontWeight:800,color:type===t.v?G:TX}},t.l.split(' ')[1]),
