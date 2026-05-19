@@ -75,7 +75,7 @@ async function ocrReceipt(imageData,mimeType,apiKey){
   alert('API response: '+JSON.stringify(data).slice(0,300));
   const text=data.content?.[0]?.text||'';
   try{return JSON.parse(text.replace(/```json|```/g,'').trim());}
-  catch(e){return null;}
+  catch(e){alert('JSON parse error: '+e.message+' text was: '+text.slice(0,200));return null;}
 }
 const MEM={};
 async function sg(k,fb){
