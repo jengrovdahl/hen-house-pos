@@ -456,9 +456,10 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
             if(result.category)sv('cat',result.category);
             setOcrStatus('✓ Receipt scanned — review and adjust below');
           } else {
+            alert('OCR returned null — API response may be error');
             setOcrStatus('⚠️ Could not read receipt — fill in manually');
           }
-        }catch(e){setOcrStatus('⚠️ '+e.message);}
+        }catch(e){alert('OCR error: '+e.message+' / '+e.toString());setOcrStatus('⚠️ '+e.message);}
       }
     };
     reader.readAsDataURL(file);
