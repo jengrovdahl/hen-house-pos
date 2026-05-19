@@ -591,8 +591,7 @@ function SettingsPage({settings,setSettings,showToast}){
       React.createElement('div',{style:{fontSize:15,fontWeight:800,color:TX,marginBottom:14}},'Business Info'),
       React.createElement(Fld,{label:'Anthropic API Key (receipt OCR)'},React.createElement(Inp,{value:f.anthropicKey||'',onChange:v=>sv('anthropicKey',v),placeholder:'sk-ant-...'}),React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'console.anthropic.com → API Keys')),
       React.createElement(Fld,{label:'OpenRouteService API Key (mileage calc)'},React.createElement(Inp,{value:f.orsApiKey||'',onChange:v=>sv('orsApiKey',v),placeholder:'eyJ...'}),React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'openrouteservice.org → Dashboard → API Key')),
-      React.createElement(Fld,{label:'OpenRouteService API Key (for mileage calculation)'},React.createElement(Inp,{value:f.orsApiKey||'',onChange:v=>sv('orsApiKey',v),placeholder:'eyJ...'}),React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'From openrouteservice.org → Dashboard → API Key')),
-
+      
       React.createElement(Fld,{label:'Business Name'},React.createElement(Inp,{value:f.bizName,onChange:v=>sv('bizName',v),placeholder:'Hen House & Co'})),
       React.createElement(Fld,{label:'MN Sales Tax Rate (%)'},React.createElement(Inp,{value:f.taxRate,onChange:v=>sv('taxRate',v),type:'number',placeholder:'7.375'}),React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'MN 6.875% + Steele Co 0.5% = 7.375%'))),
     React.createElement(Btn,{onClick:()=>{setSettings(f);showToast('Settings saved!');},size:'lg',ch:'💾 Save Settings'}));
