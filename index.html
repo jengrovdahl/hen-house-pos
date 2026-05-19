@@ -618,12 +618,19 @@ function Sidebar({page,setPage,cartCount,sqOk}){
 }
 
 function BottomNav({page,setPage,cartCount,sqOk}){
+  const [showMore,setShowMore]=useState(false);
   const primary=NAV.slice(0,4);
-  return React.createElement('nav',{style:{position:'fixed',bottom:0,left:0,right:0,background:SURF,borderTop:`1px solid ${BOR}`,display:'flex',zIndex:100}},
+  const moreItems=NAV.filter(n=>MORE_IDS.includes(n.id));
+  return React.createElement(React.Fragment,null,
+    showMore&&React.createElement('div',{onClick:()=>setShowMore(false),style:{position:'fixed',inset:0,zIndex:98}}),
+    showMore&&React.createElement('div',{style:{position:'fixed',bottom:56,left:0,right:0,background:SURF,borderTop:`1px solid ${BOR}`,zIndex:99,display:'flex',flexWrap:'wrap',padding:8,gap:6}},
+      moreItems.map(n=>React.createElement('button',{key:n.id,onClick:()=>{setPage(n.id);setShowMore(false);},style:{flex:'1 0 calc(33% - 6px)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 4px',background:page===n.id?GLT:SALT,border:`1px solid ${page===n.id?G:BOR}`,borderRadius:10,cursor:'pointer',color:page===n.id?G:TX}},
+        React.createElement('span',{style:{fontSize:18}},n.e),React.createElement('span',{style:{fontSize:10,fontWeight:700}},n.l)))),
+    React.createElement('nav',{style:{position:'fixed',bottom:0,left:0,right:0,background:SURF,borderTop:`1px solid ${BOR}`,display:'flex',zIndex:100}},
     [...primary,{id:'__more',l:'More',e:'⋯'}].map(n=>{const active=n.id==='__more'?MORE_IDS.includes(page):page===n.id;
-      return React.createElement('button',{key:n.id,onClick:()=>n.id==='__more'?setPage('expenses'):setPage(n.id),style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'8px 2px 6px',background:'transparent',border:'none',cursor:'pointer',color:active?G:MUT,borderTop:active?`2px solid ${G}`:'2px solid transparent',position:'relative'}},
+      return React.createElement('button',{key:n.id,onClick:()=>n.id==='__more'?setShowMore(s=>!s):setPage(n.id),style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'8px 2px 6px',background:'transparent',border:'none',cursor:'pointer',color:active?G:MUT,borderTop:active?`2px solid ${G}`:'2px solid transparent',position:'relative'}},
         React.createElement('span',{style:{fontSize:16}},n.e),React.createElement('span',{style:{fontSize:9,fontWeight:700}},n.l),
-        n.id==='pos'&&cartCount>0&&React.createElement('span',{style:{position:'absolute',top:4,right:'calc(50% - 18px)',background:A,color:'#fff',borderRadius:8,padding:'0 5px',fontSize:10,fontWeight:800}},cartCount));}));
+        n.id==='pos'&&cartCount>0&&React.createElement('span',{style:{position:'absolute',top:4,right:'calc(50% - 18px)',background:A,color:'#fff',borderRadius:8,padding:'0 5px',fontSize:10,fontWeight:800}},cartCount));})));
 }
 
 function App(){
