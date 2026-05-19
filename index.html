@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Hen House &amp; Co. POS v3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -550,7 +551,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
       setErrors(errs);
       setRows(mapped);
     };
-    reader.readAsText(file);
+    if(isXlsx){reader.readAsArrayBuffer(file);}else{reader.readAsText(file);}
     e.target.value='';
   };
 
@@ -596,7 +597,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,sh
     React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20}},
       React.createElement(Btn,{onClick:dlTemplate,color:MUT,outline:true,ch:'⬇ Download Template'}),
       React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload CSV'}),
-      React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.txt',onChange:handleFile,style:{display:'none'}})),
+      React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.xlsx,.xls,.txt',onChange:handleFile,style:{display:'none'}})),
 
     errors.length>0&&React.createElement('div',{style:{background:REDLT,border:`1px solid ${RED}`,borderRadius:10,padding:14,marginBottom:16}},
       React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED,marginBottom:6}},'⚠️ '+errors.length+' issue(s) found — rows with errors will be skipped:'),
