@@ -691,7 +691,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
           const disc=parseFloat(rv('discount ($)')||rv('discount')||0);
           const pay=rv('payment method')||rv('payment')||'Cash';
           const notes=rv('notes');
-          if(!date||!total)errs.push('Row '+(i+2)+': missing date or total');
+          if(!date)errs.push('Row '+(i+2)+': missing date');
           const items=itemsRaw.split(',').map(s=>s.trim()).filter(Boolean).map(s=>{
             const parts=s.split('×');
             return{name:parts[0]?.trim()||s,qty:parseInt(parts[1])||1,emoji:'🛍️'};
