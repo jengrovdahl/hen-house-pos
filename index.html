@@ -134,8 +134,8 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const cQty=cart.reduce((s,i)=>s+i.qty,0);
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
   const hasTax=cart.some(i=>i.taxable);
-  const tax=cart.reduce((s,i)=>s+(i.taxable?i.ep*i.qty*MN_TAX:0),0);
-  const total=sub+tax;
+  const tax=cart.reduce((s,i)=>s+(i.taxable?+(i.ep*i.qty-(i.ep*i.qty/(1+MN_TAX))).toFixed(2):0),0);
+  const total=sub;
   const add=p=>{const ep=effPrice(p);setCart(prev=>{const ex=prev.find(i=>i.id===p.id);if(ex)return prev.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i);return[...prev,{id:p.id,name:p.name,price:p.price,ep,taxable:p.taxable,qty:1,emoji:p.emoji,onSale:isOnSale(p)}];});};
   const upd=(id,d)=>setCart(prev=>prev.map(i=>i.id===id?{...i,qty:i.qty+d}:i).filter(i=>i.qty>0));
   const CartPanel=()=>React.createElement('div',{style:{background:SURF,borderLeft:isMobile?'none':`1px solid ${BOR}`,display:'flex',flexDirection:'column',minWidth:isMobile?'auto':320,height:'100%'}},
@@ -209,8 +209,8 @@ function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
   const taxRate=MN_LOCATIONS[locIdx].rate;
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
   const hasTaxItems=cart.some(i=>i.taxable);
-  const taxAmt=taxOn&&hasTaxItems?cart.reduce((s,i)=>s+(i.taxable?(i.ep*i.qty-(i.ep*i.qty/(1+taxRate))):0),0):0;
-  const cd=cr?.ok?cr.disc:0;const total=Math.max(0,sub+taxAmt-cd);
+  const taxAmt=taxOn&&hasTaxItems?cart.reduce((s,i)=>s+(i.taxable?+(i.ep*i.qty-(i.ep*i.qty/(1+taxRate))).toFixed(2):0),0):0;
+  const cd=cr?.ok?cr.disc:0;const total=Math.max(0,sub-cd);
   const change=method==='Cash'?Math.max(0,(parseFloat(cash)||0)-total):0;
   const sqOk=!!settings.squareAppId;
   const gcMatch=giftCards.find(g=>g.name.toLowerCase()===gcName.toLowerCase()&&g.balance>0);
@@ -224,7 +224,7 @@ function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
       React.createElement('div',{style:{borderTop:`1px solid ${BOR}`,marginTop:8,paddingTop:8}},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,color:MUT,marginBottom:4}},'Subtotal',f$(sub)),
         hasTaxItems&&React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:13,color:MUT,marginBottom:4,cursor:'pointer'}},
-          React.createElement('input',{type:'checkbox',checked:taxOn,onChange:e=>setTaxOn(e.target.checked)}),'Apply sales tax (7.375%)',taxOn&&React.createElement('span',{style:{marginLeft:'auto',color:A,fontWeight:700}},f$(taxAmt))),
+          React.createElement('input',{type:'checkbox',checked:taxOn,onChange:e=>setTaxOn(e.target.checked)}),'Track tax (backed out of price)',taxOn&&React.createElement('span',{style:{marginLeft:'auto',color:A,fontWeight:700}},f$(taxAmt))),
         cd>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,color:RED,marginBottom:4}},'Coupon','−'+f$(cd)),
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:18,fontWeight:800,color:G,marginTop:6}},'Total',f$(total)))),
     React.createElement('div',{style:{display:'flex',gap:8,marginBottom:8}},
