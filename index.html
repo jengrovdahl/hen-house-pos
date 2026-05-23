@@ -39,7 +39,7 @@ const DEF_S={squareAppId:'',appUrl:'',taxRate:7.375,bizName:'Hen House & Co',ant
 const uid=()=>Math.random().toString(36).slice(2,10);
 const today=()=>new Date().toISOString().slice(0,10);
 const f$=n=>`$${(+n||0).toFixed(2)}`;
-const fDate=d=>{try{return new Date(d+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d;}};
+const fDate=d=>{if(!d)return 'No date';try{const dt=new Date(d+'T12:00');if(isNaN(dt))return d||'No date';return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d||'No date';}};
 const effPrice=p=>{if(!p.salePrice)return+p.price;const t=today();if((!p.saleStart||t>=p.saleStart)&&(!p.saleEnd||t<=p.saleEnd))return+p.salePrice;return+p.price;};
 const isOnSale=p=>effPrice(p)<+p.price;
 const SUPA_URL="https://jzzourafdmrgwimvfysk.supabase.co";
@@ -556,9 +556,9 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
 function ReportsPage({sales,expenses,products,mileage=[]}){
   const [range,setRange]=useState('all');const now=new Date();
   const getFrom=()=>{if(range==='today')return today();if(range==='week'){const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);}if(range==='month')return`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;if(range==='year')return`${now.getFullYear()}-01-01`;return'2000-01-01';};
-  const from=getFrom();const fs=sales.filter(s=>s.date>=from&&!s.isRefund&&!s.refunded);const refunds=sales.filter(s=>s.date>=from&&s.isRefund);const fe=expenses.filter(e=>e.date>=from);
+  const from=getFrom();const fs=sales.filter(s=>s.date>=from&&!s.isRefund&&!s.refunded);const refunds=sales.filter(s=>s.date>=from&&s.isRefund);const fe=expenses.filter(e=>range==='all'?true:(e.date>=from));
   const rev=fs.reduce((s,x)=>s+x.total,0);const taxC=fs.reduce((s,x)=>s+(x.taxAmt||0),0);const expT=fe.reduce((s,e)=>s+e.amount,0);
-  const fm=mileage.filter(m=>m.date>=from);
+  const fm=mileage.filter(m=>range==='all'?true:(m.date>=from));
   const mileageT=fm.reduce((s,m)=>s+(+m.deduction||0),0);
   const totalExpT=expT+mileageT;const refundT=refunds.reduce((s,r)=>s+r.total,0);
   const cogs=fs.reduce((s,sale)=>(sale.items||[]).reduce((ss,item)=>{const p=products.find(x=>x.id===item.id);return ss+(p?p.cost*item.qty:0);},s),0);
