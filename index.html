@@ -28,7 +28,7 @@ input,select,textarea,button{font-family:inherit;}
  *  Sales + Refunds, Coupons (% and $), Gift Cards/Vouchers, Expenses + Receipt Photos, Reports, Settings + Square API
  */
 const {useState,useEffect,useCallback,useRef}=React;
-const BarChart=()=>null,Bar=()=>null,XAxis=()=>null,YAxis=()=>null,Tooltip=()=>null,ResponsiveContainer=({children})=>children;
+
 const G='#2D5C1A',GLT='#EAF2E4',A='#C47A0F',ALT='#FFF4D6',CREAM='#FAF7EF',SURF='#FFF',SALT='#F0EBE0',TX='#1C1710',MUT='#7A6A52',BOR='#DCCFB8',RED='#B53B2E',REDLT='#FDECEA',PUR='#6B3FA0';
 const MN_TAX=0.07375;
 const SCHED_C=["Advertising","Building / Equipment / Tools","Car & Truck","Contract Labor","Cost of Goods Sold","Insurance","Interest","Livestock","Meals & Entertainment","Membership & Dues","Office Supplies","Rent / Lease","Repairs & Maintenance","Subscriptions","Supplies","Taxes & Licenses","Utilities","Wages","Other"];
@@ -585,13 +585,13 @@ function ReportsPage({sales,expenses,products,mileage=[]}){
   const rcd=Object.entries(revByCat).map(([n,v])=>({n,v:+v.toFixed(2)})).sort((a,b)=>b.v-a.v);
   const expByCat={};fe.forEach(e=>{expByCat[e.cat]=(expByCat[e.cat]||0)+e.amount;});
   const ecd=Object.entries(expByCat).map(([n,v])=>({n,v:+v.toFixed(2)})).sort((a,b)=>b.v-a.v);
-  const trend=Array.from({length:6}).map((_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-5+i,1);const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;const r=sales.filter(s=>s.date.startsWith(key)&&!s.isRefund).reduce((s,x)=>s+x.total,0);return{name:d.toLocaleDateString('en-US',{month:'short'}),rev:+r.toFixed(2)};});
+
   const RANGES=[{v:'today',l:'Today'},{v:'week',l:'Week'},{v:'month',l:'Month'},{v:'year',l:'Year'},{v:'all',l:'All Time'}];
   const kpis=[{l:'Revenue',v:f$(rev),c:G,bg:GLT},{l:'Tax Collected',v:f$(taxC),c:A,bg:ALT},{l:'Expenses',v:f$(totalExpT),c:RED,bg:REDLT},{l:'Refunds',v:f$(refundT),c:RED,bg:REDLT},{l:'Gross Profit',v:f$(gross),c:gross>=0?G:RED,bg:gross>=0?GLT:REDLT},{l:'Net Profit',v:f$(net),c:net>=0?G:RED,bg:net>=0?GLT:REDLT},{l:'Mileage Deduction',v:f$(mileageT),c:A,bg:ALT}];
   return React.createElement('div',{style:{padding:16,maxWidth:1000}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Reports'),React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},RANGES.map(r=>React.createElement('button',{key:r.v,onClick:()=>setRange(r.v),style:{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',background:range===r.v?G:SALT,color:range===r.v?'#fff':MUT,fontSize:13,fontWeight:700}},r.l)))),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10,marginBottom:22}},kpis.map(k=>React.createElement('div',{key:k.l,style:{background:k.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},k.l),React.createElement('div',{style:{fontSize:20,fontWeight:800,color:k.c}},k.v)))),
-    sales.length>0&&React.createElement('div',{style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16,marginBottom:16}},React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}},'Revenue — Last 6 Months'),React.createElement(ResponsiveContainer,{width:'100%',height:150},React.createElement(BarChart,{data:trend,margin:{top:4,right:4,bottom:0,left:0}},React.createElement(XAxis,{dataKey:'name',tick:{fontSize:12,fill:MUT},axisLine:false,tickLine:false}),React.createElement(YAxis,{tick:{fontSize:11,fill:MUT},axisLine:false,tickLine:false,tickFormatter:v=>'$'+v}),React.createElement(Tooltip,{formatter:v=>[f$(v),'Revenue'],contentStyle:{borderRadius:8,border:`1px solid ${BOR}`,fontSize:13}}),React.createElement(Bar,{dataKey:'rev',fill:G,radius:[4,4,0,0]})))),
+    sales.length>0&&React.createElement(RevenueChart,{sales,range}),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16}},
       rcd.length>0&&React.createElement('div',{style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16}},React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:12}},'Revenue by Category'),rcd.map(d=>React.createElement('div',{key:d.n,style:{marginBottom:10}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:3}},React.createElement('span',{style:{color:TX}},d.n),React.createElement('span',{style:{fontWeight:700,color:G}},f$(d.v))),React.createElement('div',{style:{background:SALT,borderRadius:4,height:6}},React.createElement('div',{style:{background:G,borderRadius:4,height:6,width:rev>0?(d.v/rev*100).toFixed(0)+'%':'0%'}}))))),
       React.createElement('div',{style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16}},React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:12}},'Schedule C Deductions'),[...ecd,mileageT>0?{n:'Car & Truck (Mileage)',v:mileageT}:null].filter(Boolean).map(d=>React.createElement('div',{key:d.n,style:{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${BOR}`,fontSize:13}},React.createElement('span',{style:{color:TX}},d.n),React.createElement('span',{style:{fontWeight:700,color:RED}},f$(d.v)))),React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'10px 0',fontWeight:800,fontSize:14}},React.createElement('span',{style:{color:TX}},'Total Deductible'),React.createElement('span',{style:{color:RED}},f$(totalExpT))))));
@@ -1080,6 +1080,68 @@ function RawGoodsPage({rawGoods,setRawGoods,showToast}){
       React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
         React.createElement(Btn,{onClick:()=>{setShow(false);setEditing(null);setF(blank);},color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
         React.createElement(Btn,{onClick:save,size:'lg',style:{flex:2,justifyContent:'center'},ch:editing?'Save Changes':'Add Item'}))));
+}
+
+
+function RevenueChart({sales,range}){
+  const [chartPeriod,setChartPeriod]=useState('6m');
+  const now=new Date();
+  const periods=[{v:'3m',l:'3 Mo'},{v:'6m',l:'6 Mo'},{v:'1y',l:'1 Yr'},{v:'2y',l:'2 Yr'},{v:'all',l:'All'}];
+
+  const getMonths=()=>{
+    if(chartPeriod==='all'){
+      const sorted=[...sales].filter(s=>!s.isRefund&&s.date).sort((a,b)=>a.date.localeCompare(b.date));
+      if(!sorted.length)return[];
+      const start=new Date(sorted[0].date+'T12:00');
+      const end=new Date();
+      const months=[];
+      let cur=new Date(start.getFullYear(),start.getMonth(),1);
+      while(cur<=end){months.push(new Date(cur));cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);}
+      return months;
+    }
+    const n=chartPeriod==='3m'?3:chartPeriod==='6m'?6:chartPeriod==='1y'?12:24;
+    return Array.from({length:n},(_,i)=>new Date(now.getFullYear(),now.getMonth()-(n-1)+i,1));
+  };
+
+  const months=getMonths();
+  const data=months.map(d=>{
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const rev=sales.filter(s=>!s.isRefund&&!s.refunded&&s.date&&s.date.startsWith(key)).reduce((s,x)=>s+x.total,0);
+    const label=months.length>18?String(d.getFullYear()).slice(2):d.toLocaleDateString('en-US',{month:'short'})+(months.length>12?` '${String(d.getFullYear()).slice(2)}`:'');
+    return{label,rev:+rev.toFixed(2),key};
+  });
+
+  const maxRev=Math.max(...data.map(d=>d.rev),1);
+  const W=100,H=80,pad={t:8,r:4,b:20,l:40};
+  const pts=data.map((d,i)=>{
+    const x=pad.l+(i/(data.length-1||1))*(W-pad.l-pad.r);
+    const y=pad.t+(1-d.rev/maxRev)*(H-pad.t-pad.b);
+    return{x,y,d};
+  });
+  const path=pts.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const area=pts.length>1?`${path} L${pts[pts.length-1].x.toFixed(1)},${(H-pad.b).toFixed(1)} L${pts[0].x.toFixed(1)},${(H-pad.b).toFixed(1)} Z`:'';
+
+  const yTicks=[0,0.25,0.5,0.75,1].map(t=>({v:maxRev*t,y:pad.t+(1-t)*(H-pad.t-pad.b)}));
+
+  return React.createElement('div',{style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16,marginBottom:16}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5}},'Revenue Trend'),
+      React.createElement('div',{style:{display:'flex',gap:4}},
+        periods.map(p=>React.createElement('button',{key:p.v,onClick:()=>setChartPeriod(p.v),style:{padding:'3px 10px',borderRadius:12,border:'none',cursor:'pointer',background:chartPeriod===p.v?G:SALT,color:chartPeriod===p.v?'#fff':MUT,fontSize:11,fontWeight:700}},p.l)))),
+    data.every(d=>d.rev===0)?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:20,fontSize:13}},'No revenue data for this period'):
+    React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',height:140,overflow:'visible'}},
+      yTicks.map((t,i)=>React.createElement('g',{key:i},
+        React.createElement('line',{x1:pad.l,y1:t.y.toFixed(1),x2:(W-pad.r).toFixed(1),y2:t.y.toFixed(1),stroke:BOR,strokeWidth:.5}),
+        React.createElement('text',{x:(pad.l-2).toFixed(1),y:(t.y+1).toFixed(1),textAnchor:'end',fontSize:5,fill:MUT},'$'+Math.round(t.v)))),
+      React.createElement('defs',null,
+        React.createElement('linearGradient',{id:'revGrad',x1:'0',y1:'0',x2:'0',y2:'1'},
+          React.createElement('stop',{offset:'0%',stopColor:G,stopOpacity:.2}),
+          React.createElement('stop',{offset:'100%',stopColor:G,stopOpacity:0}))),
+      area&&React.createElement('path',{d:area,fill:'url(#revGrad)'}),
+      pts.length>1&&React.createElement('path',{d:path,fill:'none',stroke:G,strokeWidth:1.2,strokeLinejoin:'round'}),
+      pts.map((p,i)=>i%Math.max(1,Math.floor(pts.length/10))===0||i===pts.length-1?React.createElement('g',{key:i},
+        React.createElement('circle',{cx:p.x.toFixed(1),cy:p.y.toFixed(1),r:1.5,fill:G}),
+        React.createElement('text',{x:p.x.toFixed(1),y:(H-pad.b+6).toFixed(1),textAnchor:'middle',fontSize:4.5,fill:MUT},p.d.label)):null)));
 }
 
 const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'settings',l:'Settings',e:'⚙️'}];
