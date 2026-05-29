@@ -61,13 +61,16 @@ function keyToTable(k){
   return null;
 }
 
-async function ocrReceipt(imageData,mimeType,apiKey){
+async function ocrReceipt(imageData,mimeType,apiKey,mode='receipt'){
+  const prompt=mode==='invoice'
+    ?'This is an invoice document. Extract the following as JSON only, no other text: {"date":"invoice date as YYYY-MM-DD or empty","vendor":"vendor/supplier name","amount":"invoice total as number","description":"brief description of goods/services","category":"best match from: Advertising, Building / Equipment / Tools, Car & Truck, Contract Labor, Cost of Goods Sold, Insurance, Interest, Livestock, Meals & Entertainment, Membership & Dues, Office Supplies, Rent / Lease, Repairs & Maintenance, Subscriptions, Supplies, Taxes & Licenses, Utilities, Wages, Other","invoice_number":"invoice number if present or empty","due_date":"due date as YYYY-MM-DD or empty"}'
+    :'This is a receipt or expense document. Extract the following as JSON only, no other text: {"date":"YYYY-MM-DD or empty if not found","vendor":"store or vendor name","amount":"total amount as number","description":"brief description of what was purchased","category":"best match from: Advertising, Building / Equipment / Tools, Car & Truck, Contract Labor, Cost of Goods Sold, Insurance, Interest, Livestock, Meals & Entertainment, Membership & Dues, Office Supplies, Rent / Lease, Repairs & Maintenance, Subscriptions, Supplies, Taxes & Licenses, Utilities, Wages, Other"}';
   const resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:mimeType,data:imageData}},
-      {type:'text',text:'This is a receipt or expense document. Extract the following as JSON only, no other text: {"date":"YYYY-MM-DD or empty if not found","vendor":"store or vendor name","amount":"total amount as number","description":"brief description of what was purchased","category":"best match from: Advertising, Building / Equipment / Tools, Car & Truck, Contract Labor, Cost of Goods Sold, Insurance, Interest, Livestock, Meals & Entertainment, Membership & Dues, Office Supplies, Rent / Lease, Repairs & Maintenance, Subscriptions, Supplies, Taxes & Licenses, Utilities, Wages, Other"}'}
+      {type:'text',text:prompt}
     ]}]})
   });
   const data=await resp.json();
@@ -447,6 +450,8 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
   const total=expenses.reduce((s,e)=>s+e.amount,0);
   const byCat=SCHED_C.map(c=>({c,t:expenses.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0)})).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
   const [ocrStatus,setOcrStatus]=useState('');
+  const [adjustment,setAdjustment]=useState('');
+  const [ocrMode,setOcrMode]=useState('receipt');
   const handleFile=e=>{
     const file=e.target.files[0];if(!file)return;
     const reader=new FileReader();
@@ -459,7 +464,8 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
         if(!settings?.anthropicKey){alert('Add your Anthropic API key in Settings first.');return;}
         setOcrStatus('🤖 Reading receipt...');
         try{
-          const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'');
+          const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'',ocrMode);
+          if(result?.invoice_number)sv('notes',(f.notes?f.notes+' · ':'')+'Invoice #'+result.invoice_number+(result.due_date?' · Due: '+result.due_date:''));
           if(result){
             if(result.date)sv('date',result.date);
             if(result.vendor)sv('vendor',result.vendor);
@@ -479,7 +485,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
   const add=()=>{
     if(!f.description||!f.amount)return;
     if(editingId){setExpenses(prev=>prev.map(e=>e.id===editingId?{...f,id:editingId,amount:+f.amount}:e));setEditingId(null);}
-    else{setExpenses(prev=>[...prev,{...f,id:uid(),amount:+f.amount}]);
+    else{setExpenses(prev=>[...prev,{...f,id:uid(),amount:adjAmt}]);
     // Check if vendor matches a saved route
     const matchedRoute=savedRoutes?.find(r=>f.vendor&&r.name.toLowerCase().includes(f.vendor.toLowerCase()));
     if(matchedRoute){
@@ -503,16 +509,19 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
       React.createElement('div',{style:{fontSize:16,fontWeight:800,color:RED}},f$(e.amount)),
       React.createElement('button',{onClick:()=>{setF({...e,amount:String(e.amount)});setEditingId(e.id);setOcrStatus('');setShow(true);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:4,fontSize:18}},'✏️'),
       React.createElement('button',{onClick:()=>del(e.id),style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:4,fontSize:18}},'🗑️'))),
-    show&&React.createElement(Modal,{title:editingId?'Edit Expense':'Add Expense',onClose:()=>{setShow(false);setOcrStatus('');setEditingId(null);setF(blank);}},
-      !editingId&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:12,marginBottom:14,display:'flex',alignItems:'center',gap:12}},
-        React.createElement('span',{style:{fontSize:22}},'🤖'),
-        React.createElement('div',{style:{flex:1}},
-          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G}},'Scan Receipt with AI'),
-          React.createElement('div',{style:{fontSize:11,color:MUT}},'Take a photo or upload a receipt to auto-fill the form')),
+    show&&React.createElement(Modal,{title:editingId?'Edit Expense':'Add Expense',onClose:()=>{setShow(false);setOcrStatus('');setEditingId(null);setF(blank);setAdjustment('');setOcrMode('receipt');}},
+      !editingId&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:12,marginBottom:14}},
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:8}},
+          React.createElement('span',{style:{fontSize:22}},'🤖'),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G}},'Scan with AI'),
+            React.createElement('div',{style:{fontSize:11,color:MUT}},'Auto-fill form from a receipt or invoice'))),
         React.createElement('input',{type:'file',ref:fileRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
-        React.createElement('div',{style:{display:'flex',gap:6}},
-          React.createElement(Btn,{onClick:()=>{fileRef.current.removeAttribute('capture');fileRef.current.click();},color:G,size:'sm',ch:'📎 Upload'}),
-          React.createElement(Btn,{onClick:()=>{fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:G,size:'sm',ch:'📷 Photo'}))),
+        React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');fileRef.current.removeAttribute('capture');fileRef.current.click();},color:G,size:'sm',ch:'📎 Receipt'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:G,size:'sm',ch:'📷 Receipt Photo'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');fileRef.current.removeAttribute('capture');fileRef.current.click();},color:A,size:'sm',ch:'📄 Invoice'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:A,size:'sm',ch:'📷 Invoice Photo'}))),
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
         React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:f.date,onChange:v=>sv('date',v),type:'date'})),
         React.createElement(Fld,{label:'Amount ($)'},React.createElement(Inp,{value:f.amount,onChange:v=>sv('amount',v),type:'number',placeholder:'0.00'})),
@@ -526,6 +535,12 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
           React.createElement(Btn,{onClick:()=>{fileRef.current.removeAttribute('capture');fileRef.current.click();},color:MUT,outline:true,size:'sm',ch:'📎 Upload File'}),
           React.createElement(Btn,{onClick:()=>{fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:MUT,outline:true,size:'sm',ch:'📷 Take Photo'})),
         f.receipt&&React.createElement('div',{style:{marginTop:8,fontSize:13,color:G,fontWeight:700}},'✓ '+f.receipt.name+' attached')),
+      React.createElement('div',{style:{background:ALT,border:`1px solid ${A}`,borderRadius:8,padding:'10px 12px',marginTop:4,marginBottom:4}},
+        React.createElement('div',{style:{fontSize:12,fontWeight:800,color:A,marginBottom:6}},'Non-Expensable Adjustment (optional)'),
+        React.createElement('div',{style:{display:'flex',gap:10,alignItems:'flex-end'}},
+          React.createElement('div',{style:{flex:1}},React.createElement(Lbl,{t:'Subtract amount ($)'}),React.createElement(Inp,{value:adjustment,onChange:v=>setAdjustment(v),type:'number',placeholder:'0.00'})),
+          adjustment&&+adjustment>0&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G,paddingBottom:8}},
+            'Net: '+f$(Math.max(0,+f.amount-(+adjustment||0)))))),
       React.createElement('div',{style:{display:'flex',gap:10,marginTop:4}},
         React.createElement(Btn,{onClick:()=>setShow(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
         React.createElement(Btn,{onClick:add,style:{flex:2,justifyContent:'center'},ch:editingId?'Save Changes':'Add Expense'}))),
@@ -663,7 +678,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
     setRows([]);setErrors([]);setImported(false);
     const isXlsx=file.name.match(/\.xlsx?$/i);
     const reader=new FileReader();
-    reader.onload=ev=>{
+    reader.onload=async ev=>{
       let parsed=[];
       if(isXlsx){
         try{
@@ -692,6 +707,22 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
       } else {
         const{rows:csvRows}=parseCSV(ev.target.result);
         parsed=csvRows;
+      }
+      if(type==='invoice'){
+        // Invoice OCR path
+        if(!settings?.anthropicKey){setErrors(['Add Anthropic API key in Settings to use invoice scanning.']);return;}
+        setErrors([]);
+        const base64=ev.target.result.split(',')[1];
+        const mimeType=file.type||'image/jpeg';
+        setErrors(['🤖 Scanning invoice...']);
+        try{
+          const result=await ocrReceipt(base64,mimeType,settings.anthropicKey,'invoice');
+          if(result){
+            const row={date:result.date||'',vendor:result.vendor||'',amount:result.amount||0,description:result.description||'',cat:result.category||'Supplies',notes:(result.invoice_number?'Invoice #'+result.invoice_number:'')+(result.due_date?' Due: '+result.due_date:'')};
+            setRows([row]);setErrors([]);
+          } else {setErrors(['Could not extract data from invoice.']);}
+        }catch(e){setErrors(['Invoice scan failed: '+e.message]);}
+        return;
       }
       if(!parsed.length){setErrors(['No data rows found. Fill in at least one row before importing.']);setRows([]);return;}
       const errs=[];
@@ -803,22 +834,27 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
     a.download='HenHouse_'+type+'_template.csv';a.click();
   };
 
-  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'},{v:'mileage',l:'🚗 Mileage',desc:'Trip mileage log'}];
+  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'},{v:'mileage',l:'🚗 Mileage',desc:'Trip mileage log'},{v:'invoice',l:'📄 Invoice',desc:'Scan & import an invoice'}];
 
   return React.createElement('div',{style:{padding:16,maxWidth:700}},
     React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",marginBottom:4}},'Import Data'),
     React.createElement('p',{style:{fontSize:13,color:MUT,marginBottom:20}},'Upload a CSV or Excel (.xlsx) file to import historical data. Download a template to get started.'),
 
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:10,marginBottom:20}},
       typeOpts.map(t=>React.createElement('button',{key:t.v,onClick:()=>{setType(t.v);setRows([]);setErrors([]);setImported(false);},style:{padding:'14px 10px',borderRadius:12,border:`2px solid ${type===t.v?G:BOR}`,background:type===t.v?GLT:SURF,cursor:'pointer',textAlign:'center'}},
         React.createElement('div',{style:{fontSize:22,marginBottom:4}},t.l.split(' ')[0]),
         React.createElement('div',{style:{fontSize:13,fontWeight:800,color:type===t.v?G:TX}},t.l.split(' ')[1]),
         React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:2}},t.desc)))),
 
-    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20}},
-      React.createElement(Btn,{onClick:dlTemplate,color:MUT,outline:true,ch:'⬇ Download Template'}),
-      React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload File'}),
-      React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.xlsx,.xls,.txt',onChange:handleFile,style:{display:'none'}})),
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}},
+      type!=='invoice'&&React.createElement(Btn,{onClick:dlTemplate,color:MUT,outline:true,ch:'⬇ Download Template'}),
+      type==='invoice'
+        ?React.createElement(React.Fragment,null,
+            React.createElement('input',{type:'file',ref:fileRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
+            React.createElement(Btn,{onClick:()=>fileRef.current.click(),color:A,ch:'📄 Upload Invoice (AI Scan)'}))
+        :React.createElement(React.Fragment,null,
+            React.createElement('input',{type:'file',ref:fileRef,accept:'.csv,.xlsx,.xls,.txt',onChange:handleFile,style:{display:'none'}}),
+            React.createElement(Btn,{onClick:()=>fileRef.current.click(),ch:'⬆ Upload File'}))),
 
     errors.length>0&&React.createElement('div',{style:{background:REDLT,border:`1px solid ${RED}`,borderRadius:10,padding:14,marginBottom:16}},
       React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED,marginBottom:6}},'⚠️ '+errors.length+' issue(s) found — rows with errors will be skipped:'),
