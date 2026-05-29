@@ -467,6 +467,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
         setOcrStatus('🤖 Reading receipt...');
         try{
           const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'',ocrMode);
+          alert('OCR result: '+JSON.stringify(result).slice(0,200));
           if(result?.invoice_number)sv('notes',(f.notes?f.notes+' · ':'')+'Invoice #'+result.invoice_number+(result.due_date?' · Due: '+result.due_date:''));
           if(result){
             if(result.date)sv('date',result.date);
