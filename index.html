@@ -409,6 +409,7 @@ function GiftCardsPage({giftCards,setGiftCards,showToast}){
 
 function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,settings,showToast}){
   const [show,setShow]=useState(false);const [viewReceipt,setViewReceipt]=useState(null);const [editingId,setEditingId]=useState(null);
+  const [detailExpense,setDetailExpense]=useState(null);
   const [selected,setSelected]=useState(new Set());
   const toggleSel=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   const toggleAll=()=>setSelected(prev=>prev.size===expenses.length?new Set():new Set(expenses.map(e=>e.id)));
