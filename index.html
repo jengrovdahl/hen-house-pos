@@ -453,7 +453,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
   const [ocrStatus,setOcrStatus]=useState('');
   const [adjustment,setAdjustment]=useState('');
   const [ocrMode,setOcrMode]=useState('receipt');
-  const handleFile=e=>{
+  const handleFile=async e=>{
     const file=e.target.files[0];if(!file)return;
     const reader=new FileReader();
     reader.onload=async ev=>{
