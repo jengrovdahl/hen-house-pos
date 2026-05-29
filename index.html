@@ -447,7 +447,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
     showToast('Mileage entry added!');
   };
   const blank={date:today(),description:'',amount:'',cat:SCHED_C[0],vendor:'',notes:'',receipt:null};
-  const [f,setF]=useState(blank);const sv=(k,v)=>setF(p=>({...p,[k]:v}));const fileRef=useRef();
+  const [f,setF]=useState(blank);const sv=(k,v)=>setF(p=>({...p,[k]:v}));const fileRef=useRef();const ocrRef=useRef();
   const total=expenses.reduce((s,e)=>s+e.amount,0);
   const byCat=SCHED_C.map(c=>({c,t:expenses.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0)})).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
   const [ocrStatus,setOcrStatus]=useState('');
@@ -517,12 +517,12 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
           React.createElement('div',{style:{flex:1}},
             React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G}},'Scan with AI'),
             React.createElement('div',{style:{fontSize:11,color:MUT}},'Auto-fill form from a receipt or invoice'))),
-        React.createElement('input',{type:'file',ref:fileRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
+        React.createElement('input',{type:'file',ref:ocrRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
         React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
-          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');fileRef.current.removeAttribute('capture');fileRef.current.click();},color:G,size:'sm',ch:'📎 Receipt'}),
-          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:G,size:'sm',ch:'📷 Receipt Photo'}),
-          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');fileRef.current.removeAttribute('capture');fileRef.current.click();},color:A,size:'sm',ch:'📄 Invoice'}),
-          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');fileRef.current.setAttribute('capture','environment');fileRef.current.click();},color:A,size:'sm',ch:'📷 Invoice Photo'}))),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');ocrRef.current.removeAttribute('capture');ocrRef.current.click();},color:G,size:'sm',ch:'📎 Receipt'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');ocrRef.current.setAttribute('capture','environment');ocrRef.current.click();},color:G,size:'sm',ch:'📷 Receipt Photo'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');ocrRef.current.removeAttribute('capture');ocrRef.current.click();},color:A,size:'sm',ch:'📄 Invoice'}),
+          React.createElement(Btn,{onClick:()=>{setOcrMode('invoice');ocrRef.current.setAttribute('capture','environment');ocrRef.current.click();},color:A,size:'sm',ch:'📷 Invoice Photo'}))),
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
         React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:f.date,onChange:v=>sv('date',v),type:'date'})),
         React.createElement(Fld,{label:'Amount ($)'},React.createElement(Inp,{value:f.amount,onChange:v=>sv('amount',v),type:'number',placeholder:'0.00'})),
