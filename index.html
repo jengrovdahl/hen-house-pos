@@ -1590,7 +1590,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
       React.createElement('div',{style:{display:'flex',gap:8}},
         React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export Levels'}),
-        React.createElement(Btn,{onClick:()=>{setF(blankLot);setShowAddLot(true);},ch:'+ Add Inventory'}))),
+        React.createElement(Btn,{onClick:()=>{alert('clicked, showAddLot will be: true');setF(blankLot);setShowAddLot(true);},ch:'+ Add Inventory'}))),
 
     React.createElement('div',{style:{display:'flex',gap:0,marginBottom:16,background:SALT,borderRadius:8,padding:3,width:'fit-content'}},
       ['levels','history'].map(v=>React.createElement('button',{key:v,onClick:()=>setInvView(v),style:{padding:'6px 20px',borderRadius:6,border:'none',cursor:'pointer',background:invView===v?SURF:SALT,color:invView===v?G:MUT,fontWeight:700,fontSize:13,boxShadow:invView===v?'0 1px 4px rgba(0,0,0,.1)':'none'}},v==='levels'?'📊 Stock Levels':'📋 Lot History'))),
