@@ -1321,6 +1321,191 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
 }
 
 
+
+function RevenueChart({sales,range}){
+  const [chartPeriod,setChartPeriod]=useState('6m');
+  const now=new Date();
+  const periods=[{v:'3m',l:'3 Mo'},{v:'6m',l:'6 Mo'},{v:'1y',l:'1 Yr'},{v:'2y',l:'2 Yr'},{v:'all',l:'All'}];
+
+  const getMonths=()=>{
+    if(chartPeriod==='all'){
+      const sorted=[...sales].filter(s=>!s.isRefund&&s.date).sort((a,b)=>a.date.localeCompare(b.date));
+      if(!sorted.length)return[];
+      const start=new Date(sorted[0].date+'T12:00');
+      const end=new Date();
+      const months=[];
+      let cur=new Date(start.getFullYear(),start.getMonth(),1);
+      while(cur<=end){months.push(new Date(cur));cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);}
+      return months;
+    }
+    const n=chartPeriod==='3m'?3:chartPeriod==='6m'?6:chartPeriod==='1y'?12:24;
+    return Array.from({length:n},(_,i)=>new Date(now.getFullYear(),now.getMonth()-(n-1)+i,1));
+  };
+
+  const months=getMonths();
+  const data=months.map(d=>{
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const rev=sales.filter(s=>!s.isRefund&&!s.refunded&&s.date&&s.date.startsWith(key)).reduce((s,x)=>s+x.total,0);
+    const label=months.length>18?String(d.getFullYear()).slice(2):d.toLocaleDateString('en-US',{month:'short'})+(months.length>12?` '${String(d.getFullYear()).slice(2)}`:'');
+    return{label,rev:+rev.toFixed(2),key};
+  });
+
+  const maxRev=Math.max(...data.map(d=>d.rev),1);
+  const W=400,H=200,pad={t:16,r:8,b:40,l:60};
+  const pts=data.map((d,i)=>{
+    const x=pad.l+(i/(data.length-1||1))*(W-pad.l-pad.r);
+    const y=pad.t+(1-d.rev/maxRev)*(H-pad.t-pad.b);
+    return{x,y,d};
+  });
+  const path=pts.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const area=pts.length>1?`${path} L${pts[pts.length-1].x.toFixed(1)},${(H-pad.b).toFixed(1)} L${pts[0].x.toFixed(1)},${(H-pad.b).toFixed(1)} Z`:'';
+
+  const yTicks=[0,0.25,0.5,0.75,1].map(t=>({v:maxRev*t,y:pad.t+(1-t)*(H-pad.t-pad.b)}));
+
+  return React.createElement('div',{style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16,marginBottom:16}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5}},'Revenue Trend'),
+      React.createElement('div',{style:{display:'flex',gap:4}},
+        periods.map(p=>React.createElement('button',{key:p.v,onClick:()=>setChartPeriod(p.v),style:{padding:'3px 10px',borderRadius:12,border:'none',cursor:'pointer',background:chartPeriod===p.v?G:SALT,color:chartPeriod===p.v?'#fff':MUT,fontSize:11,fontWeight:700}},p.l)))),
+    data.every(d=>d.rev===0)?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:20,fontSize:13}},'No revenue data for this period'):
+    React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',height:220,overflow:'visible'}},
+      yTicks.map((t,i)=>React.createElement('g',{key:i},
+        React.createElement('line',{x1:pad.l,y1:t.y.toFixed(1),x2:(W-pad.r).toFixed(1),y2:t.y.toFixed(1),stroke:BOR,strokeWidth:.5}),
+        React.createElement('text',{x:(pad.l-4).toFixed(1),y:(t.y+2).toFixed(1),textAnchor:'end',fontSize:11,fill:MUT},'$'+Math.round(t.v)))),
+      React.createElement('defs',null,
+        React.createElement('linearGradient',{id:'revGrad',x1:'0',y1:'0',x2:'0',y2:'1'},
+          React.createElement('stop',{offset:'0%',stopColor:G,stopOpacity:.2}),
+          React.createElement('stop',{offset:'100%',stopColor:G,stopOpacity:0}))),
+      area&&React.createElement('path',{d:area,fill:'url(#revGrad)'}),
+      pts.length>1&&React.createElement('path',{d:path,fill:'none',stroke:G,strokeWidth:2,strokeLinejoin:'round'}),
+      pts.map((p,i)=>i%Math.max(1,Math.floor(pts.length/10))===0||i===pts.length-1?React.createElement('g',{key:i},
+        React.createElement('circle',{cx:p.x.toFixed(1),cy:p.y.toFixed(1),r:3,fill:G}),
+        React.createElement('text',{x:p.x.toFixed(1),y:(H-pad.b+12).toFixed(1),textAnchor:'middle',fontSize:10,fill:MUT},p.d.label)):null)));
+}
+
+
+function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setExpenses,showToast}){
+  const blankEmp={name:'',rate:''};
+  const blankEntry={date:'',employeeId:'',hours:'',notes:''};
+  const [showEmp,setShowEmp]=useState(false);
+  const [showEntry,setShowEntry]=useState(false);
+  const [empF,setEmpF]=useState(blankEmp);
+  const [entryF,setEntryF]=useState(blankEntry);
+  const [editEmpId,setEditEmpId]=useState(null);
+  const [selected,setSelected]=useState(new Set());
+  const toggleSel=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+  const toggleAll=()=>setSelected(prev=>prev.size===timeEntries.length?new Set():new Set(timeEntries.map(e=>e.id)));
+  const deleteSelected=()=>{if(!confirm('Delete '+selected.size+' entries?'))return;setTimeEntries(prev=>prev.filter(e=>!selected.has(e.id)));setSelected(new Set());showToast(selected.size+' entries deleted');};
+
+  const saveEmp=()=>{
+    if(!empF.name||!empF.rate)return;
+    if(editEmpId){setEmployees(prev=>prev.map(e=>e.id===editEmpId?{...empF,id:editEmpId,rate:+empF.rate}:e));}
+    else{setEmployees(prev=>[...prev,{...empF,id:uid(),rate:+empF.rate}]);}
+    setEmpF(blankEmp);setShowEmp(false);setEditEmpId(null);showToast('Employee saved');
+  };
+
+  const saveEntry=()=>{
+    if(!entryF.date||!entryF.employeeId||!entryF.hours)return;
+    const emp=employees.find(e=>e.id===entryF.employeeId);
+    if(!emp)return;
+    const hours=parseFloat(entryF.hours)||0;
+    const wages=parseFloat((hours*emp.rate).toFixed(2));
+    const entry={...entryF,id:uid(),employeeName:emp.name,rate:emp.rate,hours,wages};
+    setTimeEntries(prev=>[...prev,entry]);
+    // Roll up to expenses
+    setExpenses(prev=>[...prev,{
+      id:uid(),date:entryF.date,description:emp.name+' — '+hours+'hrs @ $'+emp.rate+'/hr'+(entryF.notes?' ('+entryF.notes+')':''),
+      amount:wages,cat:'Wages',vendor:'',notes:'Time entry ref: '+entry.id.slice(0,8),receipt:null,
+      invoiceNum:'',dueDate:'',timeEntryId:entry.id
+    }]);
+    setEntryF(blankEntry);setShowEntry(false);
+    showToast(emp.name+' — '+f$(wages)+' logged & added to expenses');
+  };
+
+  const deleteEntry=id=>{
+    if(!confirm('Delete this entry? It will also remove the corresponding expense.'))return;
+    const entry=timeEntries.find(e=>e.id===id);
+    setTimeEntries(prev=>prev.filter(e=>e.id!==id));
+    if(entry)setExpenses(prev=>prev.filter(e=>e.timeEntryId!==id));
+    showToast('Entry deleted');
+  };
+
+  const totalWages=timeEntries.reduce((s,e)=>s+(+e.wages||0),0);
+  const totalHours=timeEntries.reduce((s,e)=>s+(+e.hours||0),0);
+
+  return React.createElement('div',{style:{padding:16,maxWidth:900}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Timekeeping'),
+      React.createElement('div',{style:{display:'flex',gap:8}},
+        React.createElement(Btn,{onClick:()=>{setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
+        React.createElement(Btn,{onClick:()=>{setEntryF({...blankEntry,date:today()});setShowEntry(true);},ch:'+ Log Hours'}))),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:16}},[
+      {l:'Total Hours',v:totalHours.toFixed(1)+' hrs',c:TX,bg:SALT},
+      {l:'Total Wages',v:f$(totalWages),c:G,bg:GLT},
+      {l:'Employees',v:employees.length,c:TX,bg:SALT},
+    ].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:s.c}},s.v)))),
+
+    React.createElement('div',{style:{fontSize:12,color:MUT,marginBottom:14,padding:'8px 12px',background:GLT,borderRadius:8}},
+      '💡 Each time entry automatically creates a corresponding Wages expense record.'),
+
+    selected.size>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:REDLT,border:`1px solid ${RED}`,borderRadius:10,marginBottom:10}},
+      React.createElement('span',{style:{fontSize:13,fontWeight:700,color:RED}},selected.size+' selected'),
+      React.createElement(Btn,{onClick:deleteSelected,color:RED,size:'sm',ch:'🗑️ Delete Selected'}),
+      React.createElement('button',{onClick:()=>setSelected(new Set()),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13}},'Clear')),
+
+    timeEntries.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No time entries yet. Add employees first, then log hours!'):
+    React.createElement('div',{style:{overflowX:'auto'}},
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
+          React.createElement('th',{className:'sticky-th',style:{padding:'10px 12px',borderBottom:`1px solid ${BOR}`,width:32}},
+            React.createElement('input',{type:'checkbox',checked:timeEntries.length>0&&selected.size===timeEntries.length,onChange:toggleAll,style:{width:15,height:15}})),
+          ['Date','Employee','Hours','Rate','Wages','Notes',''].map(h=>React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h)))),
+        React.createElement('tbody',null,[...timeEntries].reverse().map(e=>
+          React.createElement('tr',{key:e.id,style:{borderBottom:`1px solid ${BOR}`,background:selected.has(e.id)?GLT:'transparent'}},
+            React.createElement('td',{style:{padding:'10px 12px'}},React.createElement('input',{type:'checkbox',checked:selected.has(e.id),onChange:()=>toggleSel(e.id),style:{width:15,height:15}})),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT,whiteSpace:'nowrap'}},fDate(e.date)),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,color:TX}},e.employeeName),
+            React.createElement('td',{style:{padding:'10px 12px'}},(+e.hours).toFixed(1)+' hrs'),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},'$'+e.rate+'/hr'),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:G}},f$(e.wages)),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},e.notes||'—'),
+            React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},
+              React.createElement('button',{onClick:()=>deleteEntry(e.id),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'🗑️'))))))),
+    showEmp&&React.createElement(Modal,{title:'Manage Employees',onClose:()=>{setShowEmp(false);setEditEmpId(null);setEmpF(blankEmp);},width:460},
+      React.createElement('div',{style:{marginBottom:16}},
+        React.createElement('div',{style:{fontSize:13,fontWeight:800,color:TX,marginBottom:10}},editEmpId?'Edit Employee':'Add Employee'),
+        React.createElement(Fld,{label:'Name'},React.createElement(Inp,{value:empF.name,onChange:v=>setEmpF(p=>({...p,name:v})),placeholder:'e.g. Emma'})),
+        React.createElement(Fld,{label:'Hourly Rate ($)'},React.createElement(Inp,{value:empF.rate,onChange:v=>setEmpF(p=>({...p,rate:v})),type:'number',placeholder:'0.00'})),
+        React.createElement('div',{style:{display:'flex',gap:10,marginTop:8}},
+          React.createElement(Btn,{onClick:()=>{setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'Clear'}),
+          React.createElement(Btn,{onClick:saveEmp,ch:editEmpId?'Save Changes':'+ Add Employee'}))),
+      employees.length>0&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:13,fontWeight:800,color:TX,marginBottom:8}},'Current Employees'),
+        employees.map(e=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:SALT,borderRadius:8,marginBottom:6}},
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontSize:14,fontWeight:700,color:TX}},e.name),
+            React.createElement('div',{style:{fontSize:12,color:MUT}},'$'+e.rate+'/hr')),
+          React.createElement('button',{onClick:()=>{setEmpF({name:e.name,rate:String(e.rate)});setEditEmpId(e.id);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'✏️'),
+          React.createElement('button',{onClick:()=>{if(confirm('Remove '+e.name+'?'))setEmployees(prev=>prev.filter(x=>x.id!==e.id));},style:{background:'none',border:'none',cursor:'pointer',color:RED,fontSize:16}},'🗑️'))))),
+
+    showEntry&&React.createElement(Modal,{title:'Log Hours',onClose:()=>setShowEntry(false),width:420},
+      employees.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:20,fontSize:14}},'Add employees first before logging hours.'):
+      React.createElement(React.Fragment,null,
+        React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:entryF.date,onChange:v=>setEntryF(p=>({...p,date:v})),type:'date'})),
+        React.createElement(Fld,{label:'Employee'},React.createElement(Sel,{value:entryF.employeeId,onChange:v=>setEntryF(p=>({...p,employeeId:v})),options:[{value:'',label:'Select employee...'},...employees.map(e=>({value:e.id,label:e.name+' ($'+e.rate+'/hr)'}))]})),
+        React.createElement(Fld,{label:'Hours Worked'},React.createElement(Inp,{value:entryF.hours,onChange:v=>setEntryF(p=>({...p,hours:v})),type:'number',placeholder:'0.0'})),
+        entryF.employeeId&&entryF.hours&&React.createElement('div',{style:{background:GLT,borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13,fontWeight:700,color:G}},
+          (employees.find(e=>e.id===entryF.employeeId)?'💰 '+entryF.hours+' hrs × $'+(employees.find(e=>e.id===entryF.employeeId)?.rate)+'/hr = '+f$(parseFloat(entryF.hours)*(employees.find(e=>e.id===entryF.employeeId)?.rate||0)):'')),
+        React.createElement(Fld,{label:'Notes (optional)'},React.createElement(Inp,{value:entryF.notes,onChange:v=>setEntryF(p=>({...p,notes:v})),placeholder:'e.g. BP Saturday Market'})),
+        React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+          React.createElement(Btn,{onClick:()=>setShowEntry(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+          React.createElement(Btn,{onClick:saveEntry,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save & Add to Expenses'})))));
+}
+
+
 function InventoryPage({products,setProducts,employees,inventoryLots,setInventoryLots,sales,showToast}){
   const blankLot={productId:'',qty:'',dateAdded:'',notes:'',profitSharing:false,employeeShares:[]};
   const [show,setShow]=useState(false);
