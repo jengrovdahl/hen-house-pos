@@ -58,6 +58,7 @@ function keyToTable(k){
   if(k.startsWith('hhc_raw'))return'raw_goods';
   if(k.startsWith('hhc_time'))return'time_entries';
   if(k.startsWith('hhc_employees'))return'employees';
+  if(k.startsWith('hhc_inv_lots'))return'inventory_lots';
   if(k.startsWith('hhc_settings'))return'settings';
   if(k.startsWith('hhc_pnd_'))return'pending_sq';
   return null;
@@ -672,6 +673,7 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
   const fileRef=useRef();
 
   const PROD_TEMPLATE="id,name,cat,price,cost,taxable,stock,emoji\n,Air Bites,Freeze Dried Candy,5,1.20,true,20,🍬\n,3lb Honey Jug,Honey,20,0,false,10,🍯";
+  const INV_TEMPLATE="Product Name,Qty to Add,Date Received,Notes\nAir Bites,20,2025-06-01,Sam's Club run\n3lb Honey Jug,10,2025-06-01,";
   const MILEAGE_TEMPLATE="Date (YYYY-MM-DD),From,To,Miles,Purpose,Notes\n2025-06-14,Blooming Prairie,Austin Farmers Market,46,BP Saturday Market,\n2025-06-21,Blooming Prairie,Owatonna,38,Supply run - Walmart,";
   const SALES_TEMPLATE="Date (YYYY-MM-DD),Items (name×qty, name×qty),Subtotal ($),Tax Amount ($),Discount ($),Total ($),Payment Method,Notes / Market Location\n2025-06-14,Air Bites×2,10,0.74,0,10.74,Cash,BP Market";
   const EXP_TEMPLATE="Date (YYYY-MM-DD),Description,Amount ($),Schedule C Category,Vendor,Notes\n2024-03-15,Freeze dryer bags,45,Supplies,Amazon,";
@@ -844,13 +846,13 @@ function ImportPage({products,setProducts,sales,setSales,expenses,setExpenses,mi
   };
 
   const dlTemplate=()=>{
-    const tmpl=type==='sales'?SALES_TEMPLATE:type==='expenses'?EXP_TEMPLATE:type==='mileage'?MILEAGE_TEMPLATE:PROD_TEMPLATE;
+    const tmpl=type==='sales'?SALES_TEMPLATE:type==='expenses'?EXP_TEMPLATE:type==='mileage'?MILEAGE_TEMPLATE:type==='inventory'?INV_TEMPLATE:PROD_TEMPLATE;
     const b=new Blob([tmpl],{type:'text/csv'});
     const a=document.createElement('a');a.href=URL.createObjectURL(b);
     a.download='HenHouse_'+type+'_template.csv';a.click();
   };
 
-  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'},{v:'mileage',l:'🚗 Mileage',desc:'Trip mileage log'},{v:'invoice',l:'📄 Invoice',desc:'Scan & import an invoice'}];
+  const typeOpts=[{v:'sales',l:'📈 Sales',desc:'Historical sales records'},{v:'expenses',l:'💸 Expenses',desc:'Business expenses'},{v:'products',l:'📦 Products',desc:'Add or update products/costs'},{v:'mileage',l:'🚗 Mileage',desc:'Trip mileage log'},{v:'invoice',l:'📄 Invoice',desc:'Scan & import an invoice'},{v:'inventory',l:'📋 Inventory',desc:'Bulk update stock levels'}];
 
   return React.createElement('div',{style:{padding:16,maxWidth:700}},
     React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",marginBottom:4}},'Import Data'),
@@ -1318,8 +1320,131 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
           React.createElement(Btn,{onClick:saveEntry,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save & Add to Expenses'})))));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'settings',l:'Settings',e:'⚙️'}];
-const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','settings'];
+
+function InventoryPage({products,setProducts,employees,inventoryLots,setInventoryLots,sales,showToast}){
+  const blankLot={productId:'',qty:'',dateAdded:'',notes:'',profitSharing:false,employeeShares:[]};
+  const [show,setShow]=useState(false);
+  const [f,setF]=useState(blankLot);
+  const sv=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  // Calculate profit sharing owed per employee across all sales
+  const profitSharingOwed=React.useMemo(()=>{
+    const owed={};
+    // For each sale, find which lots were consumed (FIFO) and calculate profit share
+    // We track lot consumption via inventoryLots[].consumed array
+    (inventoryLots||[]).forEach(lot=>{
+      if(!lot.profitSharing||!lot.employeeShares?.length)return;
+      const product=products.find(p=>p.id===lot.productId);
+      if(!product)return;
+      (lot.consumed||[]).forEach(sale=>{
+        const profit=(sale.salePrice-product.cost)*sale.qty;
+        lot.employeeShares.forEach(es=>{
+          const share=profit*(es.pct/100);
+          owed[es.employeeId]=(owed[es.employeeId]||0)+share;
+        });
+      });
+    });
+    return owed;
+  },[inventoryLots,products,sales]);
+
+  const addLot=()=>{
+    if(!f.productId||!f.qty)return;
+    const product=products.find(p=>p.id===f.productId);
+    if(!product)return;
+    const lot={...f,id:uid(),qty:+f.qty,originalQty:+f.qty,dateAdded:f.dateAdded||today(),consumed:[],productName:product.name};
+    setInventoryLots(prev=>[...prev,lot]);
+    // Update product stock
+    setProducts(prev=>prev.map(p=>p.id===f.productId?{...p,stock:p.stock+(+f.qty)}:p));
+    setF(blankLot);setShow(false);
+    showToast('+'+f.qty+' added to '+product.name);
+  };
+
+  const exportCSV=()=>{
+    const rows=products.map(p=>{
+      const lots=(inventoryLots||[]).filter(l=>l.productId===p.id);
+      const totalLots=lots.reduce((s,l)=>s+l.qty,0);
+      return[p.name,p.cat,p.stock,totalLots,p.price,p.cost];
+    });
+    const csv=[['Product','Category','Stock (current)','Lot Qty (FIFO)','Price','Cost'],...rows]
+      .map(r=>r.map(v=>'"'+String(v||0).replace(/"/g,'""')+'"').join(',')).join('\n');
+    const b=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='hhc-inventory.csv';a.click();
+  };
+
+  const activeProducts=products.filter(p=>p.active);
+  const lotsWithSharing=(inventoryLots||[]).filter(l=>l.profitSharing&&l.qty>0);
+
+  return React.createElement('div',{style:{padding:16,maxWidth:900}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
+      React.createElement('div',{style:{display:'flex',gap:8}},
+        React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export Levels'}),
+        React.createElement(Btn,{onClick:()=>{setF(blankLot);setShow(true);},ch:'+ Add Inventory'}))),
+
+    Object.keys(profitSharingOwed).length>0&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:14,marginBottom:16}},
+      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G,marginBottom:8}},'💰 Profit Sharing Owed'),
+      Object.entries(profitSharingOwed).map(([empId,amt])=>{
+        const emp=employees.find(e=>e.id===empId);
+        return emp?React.createElement('div',{key:empId,style:{display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',borderBottom:`1px solid ${BOR}`}},
+          React.createElement('span',{style:{fontWeight:700}},emp.name),
+          React.createElement('span',{style:{color:G,fontWeight:800}},f$(amt))):null;
+      })),
+
+    React.createElement('div',{style:{overflowX:'auto'}},
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
+          ['Product','Category','Stock','Price','Cost','Margin','Profit-Share Lots',''].map(h=>
+            React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h)))),
+        React.createElement('tbody',null,activeProducts.map(p=>{
+          const pLots=(inventoryLots||[]).filter(l=>l.productId===p.id&&l.qty>0&&l.profitSharing);
+          const margin=p.cost>0?((p.price-p.cost)/p.price*100).toFixed(0)+'%':'—';
+          return React.createElement('tr',{key:p.id,style:{borderBottom:`1px solid ${BOR}`}},
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,color:TX}},p.emoji+' '+p.name),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},p.cat),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:p.stock<=3?RED:G}},p.stock),
+            React.createElement('td',{style:{padding:'10px 12px'}},f$(p.price)),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},p.cost>0?f$(p.cost):'—'),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},margin),
+            React.createElement('td',{style:{padding:'10px 12px'}},pLots.length>0?
+              React.createElement('span',{style:{background:GLT,color:G,borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700}},pLots.reduce((s,l)=>s+l.qty,0)+' units'):
+              React.createElement('span',{style:{color:MUT,fontSize:12}},'none')),
+            React.createElement('td',{style:{padding:'10px 12px'}},
+              React.createElement('button',{onClick:()=>{setF({...blankLot,productId:p.id});setShow(true);},style:{background:GLT,border:`1px solid ${G}`,borderRadius:6,cursor:'pointer',padding:'3px 8px',fontSize:12,color:G,fontWeight:700}},'+Stock')));
+        })))),
+
+    show&&React.createElement(Modal,{title:'Add Inventory',onClose:()=>setShow(false),width:500},
+      React.createElement(Fld,{label:'Product'},React.createElement(Sel,{value:f.productId,onChange:v=>sv('productId',v),options:[{value:'',label:'Select product...'},...activeProducts.map(p=>({value:p.id,label:p.emoji+' '+p.name+' (stock: '+p.stock+')'}))]})),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+        React.createElement(Fld,{label:'Quantity to Add'},React.createElement(Inp,{value:f.qty,onChange:v=>sv('qty',v),type:'number',placeholder:'0'})),
+        React.createElement(Fld,{label:'Date Received'},React.createElement(Inp,{value:f.dateAdded,onChange:v=>sv('dateAdded',v),type:'date'}))),
+      React.createElement(Fld,{label:'Notes (optional)'},React.createElement(Inp,{value:f.notes,onChange:v=>sv('notes',v),placeholder:'e.g. Sam\'s Club run, batch #3'})),
+      React.createElement('div',{style:{background:SALT,borderRadius:10,padding:14,marginTop:4}},
+        React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',marginBottom:f.profitSharing?12:0}},
+          React.createElement('input',{type:'checkbox',checked:f.profitSharing,onChange:e=>sv('profitSharing',e.target.checked),style:{width:16,height:16}}),
+          React.createElement('span',{style:{fontSize:13,fontWeight:800,color:TX}},'Designate for Profit Sharing')),
+        f.profitSharing&&employees.length===0&&React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:4}},'Add employees in Timekeeping first.'),
+        f.profitSharing&&employees.length>0&&React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:12,color:MUT,marginBottom:8}},'Set each employee\'s % of profit from this inventory lot:'),
+          employees.map(emp=>{
+            const share=f.employeeShares.find(s=>s.employeeId===emp.id);
+            const checked=!!share;
+            return React.createElement('div',{key:emp.id,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}},
+              React.createElement('input',{type:'checkbox',checked:checked,onChange:e=>{
+                if(e.target.checked){sv('employeeShares',[...f.employeeShares,{employeeId:emp.id,pct:10}]);}
+                else{sv('employeeShares',f.employeeShares.filter(s=>s.employeeId!==emp.id));}
+              },style:{width:15,height:15}}),
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,width:100}},emp.name),
+              checked&&React.createElement(React.Fragment,null,
+                React.createElement(Inp,{value:share.pct,onChange:v=>sv('employeeShares',f.employeeShares.map(s=>s.employeeId===emp.id?{...s,pct:+v}:s)),type:'number',style:{width:80}}),
+                React.createElement('span',{style:{fontSize:13,color:MUT}},'% of profit')));
+          }))),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
+        React.createElement(Btn,{onClick:()=>setShow(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:addLot,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Add to Inventory'}))));
+}
+
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'settings',l:'Settings',e:'⚙️'}];
+const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','inventory','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
   return React.createElement('div',{style:{width:190,background:G,display:'flex',flexDirection:'column',flexShrink:0,minHeight:'100%'}},
@@ -1353,13 +1478,14 @@ function App(){
   const [rawGoods,setRawGoods]=useState([]);
   const [timeEntries,setTimeEntries]=useState([]);
   const [employees,setEmployees]=useState([]);
+  const [inventoryLots,setInventoryLots]=useState([]);
   const [cart,setCart]=useState([]);const [checkout,setCheckout]=useState(false);
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setReady(true);}load();},[]);
+  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
@@ -1371,12 +1497,29 @@ function App(){
   useEffect(()=>{if(ready)ss('hhc_raw',rawGoods);},[rawGoods,ready]);
   useEffect(()=>{if(ready)ss('hhc_time',timeEntries);},[timeEntries,ready]);
   useEffect(()=>{if(ready)ss('hhc_employees',employees);},[employees,ready]);
+  useEffect(()=>{if(ready)ss('hhc_inv_lots',inventoryLots);},[inventoryLots,ready]);
   // pendingSq confirmation handled by SquareConfirmModal
   const showToast=msg=>setToast(msg);const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const completeSale=useCallback((saleData)=>{
     const cartItems=saleData.items||cart;
     setSales(prev=>[...prev,{id:uid(),date:today(),items:cartItems,subtotal:saleData.subtotal,taxAmt:saleData.taxAmt,discount:saleData.couponDisc||0,total:saleData.total,payMethod:saleData.method,notes:saleData.notes||'',squareTxId:saleData.squareTxId||null}]);
     setProducts(prev=>prev.map(p=>{const ci=cartItems.find(i=>i.id===p.id);return ci?{...p,stock:Math.max(0,p.stock-ci.qty)}:p;}));
+    // FIFO lot consumption for profit sharing tracking
+    setInventoryLots(prev=>{
+      let lots=[...prev];
+      cartItems.forEach(item=>{
+        let remaining=item.qty;
+        // Sort by dateAdded ascending (FIFO)
+        const prodLots=lots.filter(l=>l.productId===item.id&&l.qty>0).sort((a,b)=>a.dateAdded.localeCompare(b.dateAdded));
+        prodLots.forEach(lot=>{
+          if(remaining<=0)return;
+          const consume=Math.min(lot.qty,remaining);
+          remaining-=consume;
+          lots=lots.map(l=>l.id===lot.id?{...l,qty:l.qty-consume,consumed:[...(l.consumed||[]),{saleId:uid(),salePrice:item.ep||item.price,qty:consume,date:today()}]}:l);
+        });
+      });
+      return lots;
+    });
     if(saleData.couponId)setCoupons(prev=>prev.map(c=>c.id===saleData.couponId?{...c,uses:c.uses+1}:c));
     if(saleData.gcName){const gc=giftCards.find(g=>g.name.toLowerCase()===saleData.gcName.toLowerCase());if(gc)setGiftCards(prev=>prev.map(g=>g.id===gc.id?{...g,balance:Math.max(0,g.balance-saleData.total)}:g));}
     if(!saleData.items){setCart([]);setCheckout(false);}
@@ -1384,8 +1527,8 @@ function App(){
   },[cart,giftCards]);
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
-  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,inventoryLots,setInventoryLots,settings,setSettings,showToast,isMobile:mobile};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'inventory':return React.createElement(InventoryPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
