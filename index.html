@@ -1443,7 +1443,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
           React.createElement('span',{style:{color:G,fontWeight:800}},f$(amt))):null;
       })),
 
-    view==='levels'&&React.createElement('div',{style:{overflowX:'auto'}},
+    view==='levels'&&activeProducts.length>0&&React.createElement('div',{style:{overflowX:'auto'}},
       React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
         React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
           ['Product','Category','Stock','Price','Cost','Margin','Profit-Share Lots',''].map(h=>
