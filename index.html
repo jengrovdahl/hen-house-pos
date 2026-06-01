@@ -1509,7 +1509,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
 function InventoryPage({products,setProducts,employees,inventoryLots,setInventoryLots,sales,showToast}){
   const blankLot={productId:'',qty:'',dateAdded:'',notes:'',profitSharing:false,employeeShares:[]};
   const [show,setShow]=useState(false);
-  const [view,setView]=useState('levels');
+  const [invView,setInvView]=useState('levels');
   const [editLotId,setEditLotId]=useState(null);
   const [f,setF]=useState(blankLot);
   const sv=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1593,9 +1593,9 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
         React.createElement(Btn,{onClick:()=>{setF(blankLot);setShow(true);},ch:'+ Add Inventory'}))),
 
     React.createElement('div',{style:{display:'flex',gap:0,marginBottom:16,background:SALT,borderRadius:8,padding:3,width:'fit-content'}},
-      ['levels','history'].map(v=>React.createElement('button',{key:v,onClick:()=>setView(v),style:{padding:'6px 20px',borderRadius:6,border:'none',cursor:'pointer',background:view===v?SURF:SALT,color:view===v?G:MUT,fontWeight:700,fontSize:13,boxShadow:view===v?'0 1px 4px rgba(0,0,0,.1)':'none'}},v==='levels'?'📊 Stock Levels':'📋 Lot History'))),
+      ['levels','history'].map(v=>React.createElement('button',{key:v,onClick:()=>setInvView(v),style:{padding:'6px 20px',borderRadius:6,border:'none',cursor:'pointer',background:invView===v?SURF:SALT,color:invView===v?G:MUT,fontWeight:700,fontSize:13,boxShadow:invView===v?'0 1px 4px rgba(0,0,0,.1)':'none'}},v==='levels'?'📊 Stock Levels':'📋 Lot History'))),
 
-    view==='history'&&React.createElement('div',null,
+    invView==='history'&&React.createElement('div',null,
       inventoryLots.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No inventory lots yet.'):
       React.createElement('div',{style:{overflowX:'auto'}},
         React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
@@ -1619,7 +1619,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
                 React.createElement('button',{onClick:()=>deleteLot(lot.id),style:{background:'none',border:'none',cursor:'pointer',color:RED,fontSize:16}},'🗑️')));
           })))),
 
-    view==='levels'&&Object.keys(profitSharingOwed).length>0&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:14,marginBottom:16}},
+    invView==='levels'&&Object.keys(profitSharingOwed).length>0&&React.createElement('div',{style:{background:GLT,border:`1px solid ${G}`,borderRadius:10,padding:14,marginBottom:16}},
       React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G,marginBottom:8}},'💰 Profit Sharing Owed'),
       Object.entries(profitSharingOwed).map(([empId,amt])=>{
         const emp=employees.find(e=>e.id===empId);
@@ -1628,8 +1628,8 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
           React.createElement('span',{style:{color:G,fontWeight:800}},f$(amt))):null;
       })),
 
-    view==='levels'&&activeProducts.length===0&&React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No active products found. Add products in the Products tab.'),
-    view==='levels'&&activeProducts.length>0&&React.createElement('div',{style:{overflowX:'auto'}},
+    invView==='levels'&&activeProducts.length===0&&React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No active products found. Add products in the Products tab.'),
+    invView==='levels'&&activeProducts.length>0&&React.createElement('div',{style:{overflowX:'auto'}},
       React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
         React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
           ['Product','Category','Stock','Price','Cost','Margin','Profit-Share Lots',''].map(h=>
