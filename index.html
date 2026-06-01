@@ -74,10 +74,9 @@ async function ocrReceipt(imageData,mimeType,apiKey,mode='receipt'){
     ]}]})
   });
   const data=await resp.json();
-  alert('Full API response: '+JSON.stringify(data).slice(0,400));
   const text=data.content?.[0]?.text||'';
   try{return JSON.parse(text.replace(/```json|```/g,'').trim());}
-  catch(e){alert('Raw OCR text: '+text.slice(0,300));return null;}
+  catch(e){return null;}
 }
 const MEM={};
 async function sg(k,fb){
@@ -462,13 +461,15 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
       const base64=dataUrl.split(',')[1];
       const mimeType=file.type||'image/jpeg';
       sv('receipt',{name:file.name,data:dataUrl,type:file.type});
-      alert('handleFile running. mimeType='+mimeType+' ocrMode='+ocrMode+' hasKey='+!!settings?.anthropicKey);
-      if(mimeType.startsWith('image/')||mimeType==='application/pdf'){
+      if(mimeType.startsWith('image/')){
         if(!settings?.anthropicKey){alert('Add your Anthropic API key in Settings first.');return;}
+      } else if(mimeType==='application/pdf'){
+        setOcrStatus('⚠️ PDFs not supported for scanning — please take a photo or screenshot of the invoice instead');
+        return;
+      } if(mimeType.startsWith('image/')){
         setOcrStatus('🤖 Reading receipt...');
         try{
           const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'',ocrMode);
-          alert('OCR result: '+JSON.stringify(result).slice(0,200));
           if(result?.invoice_number)sv('notes',(f.notes?f.notes+' · ':'')+'Invoice #'+result.invoice_number+(result.due_date?' · Due: '+result.due_date:''));
           if(result){
             if(result.date)sv('date',result.date);
@@ -520,7 +521,7 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
           React.createElement('div',{style:{flex:1}},
             React.createElement('div',{style:{fontSize:13,fontWeight:800,color:G}},'Scan with AI'),
             React.createElement('div',{style:{fontSize:11,color:MUT}},'Auto-fill form from a receipt or invoice'))),
-        React.createElement('input',{type:'file',ref:ocrRef,accept:'image/*,.pdf',onChange:handleFile,style:{display:'none'}}),
+        React.createElement('input',{type:'file',ref:ocrRef,accept:'image/*',onChange:handleFile,style:{display:'none'}}),
         React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
           React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');ocrRef.current.removeAttribute('capture');ocrRef.current.click();},color:G,size:'sm',ch:'📎 Receipt'}),
           React.createElement(Btn,{onClick:()=>{setOcrMode('receipt');ocrRef.current.setAttribute('capture','environment');ocrRef.current.click();},color:G,size:'sm',ch:'📷 Receipt Photo'}),
