@@ -1249,7 +1249,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Timekeeping'),
       React.createElement('div',{style:{display:'flex',gap:8}},
-        React.createElement(Btn,{onClick:()=>{setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
+        React.createElement(Btn,{onClick:()=>{alert('clicked');setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
         React.createElement(Btn,{onClick:()=>{setEntryF({...blankEntry,date:today()});setShowEntry(true);},ch:'+ Log Hours'}))),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:16}},[
