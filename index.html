@@ -56,6 +56,8 @@ function keyToTable(k){
   if(k.startsWith('hhc_mileage'))return'mileage';
   if(k.startsWith('hhc_routes'))return'saved_routes';
   if(k.startsWith('hhc_raw'))return'raw_goods';
+  if(k.startsWith('hhc_time'))return'time_entries';
+  if(k.startsWith('hhc_employees'))return'employees';
   if(k.startsWith('hhc_settings'))return'settings';
   if(k.startsWith('hhc_pnd_'))return'pending_sq';
   return null;
@@ -1190,8 +1192,131 @@ function RevenueChart({sales,range}){
         React.createElement('text',{x:p.x.toFixed(1),y:(H-pad.b+12).toFixed(1),textAnchor:'middle',fontSize:10,fill:MUT},p.d.label)):null)));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'settings',l:'Settings',e:'⚙️'}];
-const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','settings'];
+
+function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setExpenses,showToast}){
+  const blankEmp={name:'',rate:''};
+  const blankEntry={date:'',employeeId:'',hours:'',notes:''};
+  const [showEmp,setShowEmp]=useState(false);
+  const [showEntry,setShowEntry]=useState(false);
+  const [empF,setEmpF]=useState(blankEmp);
+  const [entryF,setEntryF]=useState(blankEntry);
+  const [editEmpId,setEditEmpId]=useState(null);
+  const [selected,setSelected]=useState(new Set());
+  const toggleSel=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+  const toggleAll=()=>setSelected(prev=>prev.size===timeEntries.length?new Set():new Set(timeEntries.map(e=>e.id)));
+  const deleteSelected=()=>{if(!confirm('Delete '+selected.size+' entries?'))return;setTimeEntries(prev=>prev.filter(e=>!selected.has(e.id)));setSelected(new Set());showToast(selected.size+' entries deleted');};
+
+  const saveEmp=()=>{
+    if(!empF.name||!empF.rate)return;
+    if(editEmpId){setEmployees(prev=>prev.map(e=>e.id===editEmpId?{...empF,id:editEmpId,rate:+empF.rate}:e));}
+    else{setEmployees(prev=>[...prev,{...empF,id:uid(),rate:+empF.rate}]);}
+    setEmpF(blankEmp);setShowEmp(false);setEditEmpId(null);showToast('Employee saved');
+  };
+
+  const saveEntry=()=>{
+    if(!entryF.date||!entryF.employeeId||!entryF.hours)return;
+    const emp=employees.find(e=>e.id===entryF.employeeId);
+    if(!emp)return;
+    const hours=parseFloat(entryF.hours)||0;
+    const wages=parseFloat((hours*emp.rate).toFixed(2));
+    const entry={...entryF,id:uid(),employeeName:emp.name,rate:emp.rate,hours,wages};
+    setTimeEntries(prev=>[...prev,entry]);
+    // Roll up to expenses
+    setExpenses(prev=>[...prev,{
+      id:uid(),date:entryF.date,description:emp.name+' — '+hours+'hrs @ $'+emp.rate+'/hr'+(entryF.notes?' ('+entryF.notes+')':''),
+      amount:wages,cat:'Wages',vendor:'',notes:'Time entry ref: '+entry.id.slice(0,8),receipt:null,
+      invoiceNum:'',dueDate:'',timeEntryId:entry.id
+    }]);
+    setEntryF(blankEntry);setShowEntry(false);
+    showToast(emp.name+' — '+f$(wages)+' logged & added to expenses');
+  };
+
+  const deleteEntry=id=>{
+    if(!confirm('Delete this entry? It will also remove the corresponding expense.'))return;
+    const entry=timeEntries.find(e=>e.id===id);
+    setTimeEntries(prev=>prev.filter(e=>e.id!==id));
+    if(entry)setExpenses(prev=>prev.filter(e=>e.timeEntryId!==id));
+    showToast('Entry deleted');
+  };
+
+  const totalWages=timeEntries.reduce((s,e)=>s+(+e.wages||0),0);
+  const totalHours=timeEntries.reduce((s,e)=>s+(+e.hours||0),0);
+
+  return React.createElement('div',{style:{padding:16,maxWidth:900}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Timekeeping'),
+      React.createElement('div',{style:{display:'flex',gap:8}},
+        React.createElement(Btn,{onClick:()=>{setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
+        React.createElement(Btn,{onClick:()=>{setEntryF({...blankEntry,date:today()});setShowEntry(true);},ch:'+ Log Hours'}))),
+
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:16}},[
+      {l:'Total Hours',v:totalHours.toFixed(1)+' hrs',c:TX,bg:SALT},
+      {l:'Total Wages',v:f$(totalWages),c:G,bg:GLT},
+      {l:'Employees',v:employees.length,c:TX,bg:SALT},
+    ].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:s.c}},s.v)))),
+
+    React.createElement('div',{style:{fontSize:12,color:MUT,marginBottom:14,padding:'8px 12px',background:GLT,borderRadius:8}},
+      '💡 Each time entry automatically creates a corresponding Wages expense record.'),
+
+    selected.size>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:REDLT,border:`1px solid ${RED}`,borderRadius:10,marginBottom:10}},
+      React.createElement('span',{style:{fontSize:13,fontWeight:700,color:RED}},selected.size+' selected'),
+      React.createElement(Btn,{onClick:deleteSelected,color:RED,size:'sm',ch:'🗑️ Delete Selected'}),
+      React.createElement('button',{onClick:()=>setSelected(new Set()),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13}},'Clear')),
+
+    timeEntries.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No time entries yet. Add employees first, then log hours!'):
+    React.createElement('div',{style:{overflowX:'auto'}},
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
+          React.createElement('th',{className:'sticky-th',style:{padding:'10px 12px',borderBottom:`1px solid ${BOR}`,width:32}},
+            React.createElement('input',{type:'checkbox',checked:timeEntries.length>0&&selected.size===timeEntries.length,onChange:toggleAll,style:{width:15,height:15}})),
+          ['Date','Employee','Hours','Rate','Wages','Notes',''].map(h=>React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h)))),
+        React.createElement('tbody',null,[...timeEntries].reverse().map(e=>
+          React.createElement('tr',{key:e.id,style:{borderBottom:`1px solid ${BOR}`,background:selected.has(e.id)?GLT:'transparent'}},
+            React.createElement('td',{style:{padding:'10px 12px'}},React.createElement('input',{type:'checkbox',checked:selected.has(e.id),onChange:()=>toggleSel(e.id),style:{width:15,height:15}})),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT,whiteSpace:'nowrap'}},fDate(e.date)),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,color:TX}},e.employeeName),
+            React.createElement('td',{style:{padding:'10px 12px'}},(+e.hours).toFixed(1)+' hrs'),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},'$'+e.rate+'/hr'),
+            React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:G}},f$(e.wages)),
+            React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},e.notes||'—'),
+            React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},
+              React.createElement('button',{onClick:()=>deleteEntry(e.id),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'🗑️')))))),
+
+    showEmp&&React.createElement(Modal,{title:'Manage Employees',onClose:()=>{setShowEmp(false);setEditEmpId(null);setEmpF(blankEmp);},width:460},
+      React.createElement('div',{style:{marginBottom:16}},
+        React.createElement('div',{style:{fontSize:13,fontWeight:800,color:TX,marginBottom:10}},editEmpId?'Edit Employee':'Add Employee'),
+        React.createElement(Fld,{label:'Name'},React.createElement(Inp,{value:empF.name,onChange:v=>setEmpF(p=>({...p,name:v})),placeholder:'e.g. Emma'})),
+        React.createElement(Fld,{label:'Hourly Rate ($)'},React.createElement(Inp,{value:empF.rate,onChange:v=>setEmpF(p=>({...p,rate:v})),type:'number',placeholder:'0.00'})),
+        React.createElement('div',{style:{display:'flex',gap:10,marginTop:8}},
+          React.createElement(Btn,{onClick:()=>{setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'Clear'}),
+          React.createElement(Btn,{onClick:saveEmp,ch:editEmpId?'Save Changes':'+ Add Employee'}))),
+      employees.length>0&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:13,fontWeight:800,color:TX,marginBottom:8}},'Current Employees'),
+        employees.map(e=>React.createElement('div',{key:e.id,style:{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:SALT,borderRadius:8,marginBottom:6}},
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontSize:14,fontWeight:700,color:TX}},e.name),
+            React.createElement('div',{style:{fontSize:12,color:MUT}},'$'+e.rate+'/hr')),
+          React.createElement('button',{onClick:()=>{setEmpF({name:e.name,rate:String(e.rate)});setEditEmpId(e.id);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'✏️'),
+          React.createElement('button',{onClick:()=>{if(confirm('Remove '+e.name+'?'))setEmployees(prev=>prev.filter(x=>x.id!==e.id));},style:{background:'none',border:'none',cursor:'pointer',color:RED,fontSize:16}},'🗑️'))))),
+
+    showEntry&&React.createElement(Modal,{title:'Log Hours',onClose:()=>setShowEntry(false),width:420},
+      employees.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:20,fontSize:14}},'Add employees first before logging hours.'):
+      React.createElement(React.Fragment,null,
+        React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:entryF.date,onChange:v=>setEntryF(p=>({...p,date:v})),type:'date'})),
+        React.createElement(Fld,{label:'Employee'},React.createElement(Sel,{value:entryF.employeeId,onChange:v=>setEntryF(p=>({...p,employeeId:v})),options:[{value:'',label:'Select employee...'},...employees.map(e=>({value:e.id,label:e.name+' ($'+e.rate+'/hr)'}))]})),
+        React.createElement(Fld,{label:'Hours Worked'},React.createElement(Inp,{value:entryF.hours,onChange:v=>setEntryF(p=>({...p,hours:v})),type:'number',placeholder:'0.0'})),
+        entryF.employeeId&&entryF.hours&&React.createElement('div',{style:{background:GLT,borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13,fontWeight:700,color:G}},
+          (employees.find(e=>e.id===entryF.employeeId)?'💰 '+entryF.hours+' hrs × $'+(employees.find(e=>e.id===entryF.employeeId)?.rate)+'/hr = '+f$(parseFloat(entryF.hours)*(employees.find(e=>e.id===entryF.employeeId)?.rate||0)):'')),
+        React.createElement(Fld,{label:'Notes (optional)'},React.createElement(Inp,{value:entryF.notes,onChange:v=>setEntryF(p=>({...p,notes:v})),placeholder:'e.g. BP Saturday Market'})),
+        React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+          React.createElement(Btn,{onClick:()=>setShowEntry(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+          React.createElement(Btn,{onClick:saveEntry,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save & Add to Expenses'}))))));
+}
+
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'settings',l:'Settings',e:'⚙️'}];
+const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
   return React.createElement('div',{style:{width:190,background:G,display:'flex',flexDirection:'column',flexShrink:0,minHeight:'100%'}},
@@ -1223,13 +1348,15 @@ function App(){
   const [mileage,setMileage]=useState([]);
   const [savedRoutes,setSavedRoutes]=useState([]);
   const [rawGoods,setRawGoods]=useState([]);
+  const [timeEntries,setTimeEntries]=useState([]);
+  const [employees,setEmployees]=useState([]);
   const [cart,setCart]=useState([]);const [checkout,setCheckout]=useState(false);
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setReady(true);}load();},[]);
+  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]),sg('hhc_employees',[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
@@ -1239,6 +1366,8 @@ function App(){
   useEffect(()=>{if(ready)ss('hhc_mileage',mileage);},[mileage,ready]);
   useEffect(()=>{if(ready)ss('hhc_routes',savedRoutes);},[savedRoutes,ready]);
   useEffect(()=>{if(ready)ss('hhc_raw',rawGoods);},[rawGoods,ready]);
+  useEffect(()=>{if(ready)ss('hhc_time',timeEntries);},[timeEntries,ready]);
+  useEffect(()=>{if(ready)ss('hhc_employees',employees);},[employees,ready]);
   // pendingSq confirmation handled by SquareConfirmModal
   const showToast=msg=>setToast(msg);const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const completeSale=useCallback((saleData)=>{
@@ -1252,8 +1381,8 @@ function App(){
   },[cart,giftCards]);
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
-  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,settings,setSettings,showToast,isMobile:mobile};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
