@@ -75,8 +75,12 @@ async function ocrReceipt(imageData,mimeType,apiKey,mode='receipt'){
   });
   const data=await resp.json();
   const text=data.content?.[0]?.text||'';
-  try{return JSON.parse(text.replace(/```json|```/g,'').trim());}
-  catch(e){return null;}
+  try{
+    const clean=text.replace(/```json\s*/gi,'').replace(/```/g,'').trim();
+    const start=clean.indexOf('{');const end=clean.lastIndexOf('}');
+    if(start===-1||end===-1)return null;
+    return JSON.parse(clean.slice(start,end+1));
+  }catch(e){return null;}
 }
 const MEM={};
 async function sg(k,fb){
