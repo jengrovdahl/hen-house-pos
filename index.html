@@ -1508,7 +1508,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
 
 function InventoryPage({products,setProducts,employees,inventoryLots,setInventoryLots,sales,showToast}){
   const blankLot={productId:'',qty:'',dateAdded:'',notes:'',profitSharing:false,employeeShares:[]};
-  const [show,setShow]=useState(false);
+  const [showAddLot,setShowAddLot]=useState(false);
   const [invView,setInvView]=useState('levels');
   const [editLotId,setEditLotId]=useState(null);
   const [f,setF]=useState(blankLot);
@@ -1544,7 +1544,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
       const diff=(+f.qty)-(oldLot?.qty||0);
       setInventoryLots(prev=>prev.map(l=>l.id===editLotId?{...l,...f,qty:+f.qty,originalQty:+f.qty,productName:product.name}:l));
       if(diff!==0)setProducts(prev=>prev.map(p=>p.id===f.productId?{...p,stock:Math.max(0,p.stock+diff)}:p));
-      setEditLotId(null);setF(blankLot);setShow(false);showToast('Lot updated');
+      setEditLotId(null);setF(blankLot);setShowAddLot(false);showToast('Lot updated');
       return;
     }
     addLot();
@@ -1566,7 +1566,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
     setInventoryLots(prev=>[...prev,lot]);
     // Update product stock
     setProducts(prev=>prev.map(p=>p.id===f.productId?{...p,stock:p.stock+(+f.qty)}:p));
-    setF(blankLot);setShow(false);
+    setF(blankLot);setShowAddLot(false);
     showToast('+'+f.qty+' added to '+product.name);
   };
 
@@ -1590,7 +1590,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
       React.createElement('div',{style:{display:'flex',gap:8}},
         React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export Levels'}),
-        React.createElement(Btn,{onClick:()=>{setF(blankLot);setShow(true);},ch:'+ Add Inventory'}))),
+        React.createElement(Btn,{onClick:()=>{setF(blankLot);setShowAddLot(true);},ch:'+ Add Inventory'}))),
 
     React.createElement('div',{style:{display:'flex',gap:0,marginBottom:16,background:SALT,borderRadius:8,padding:3,width:'fit-content'}},
       ['levels','history'].map(v=>React.createElement('button',{key:v,onClick:()=>setInvView(v),style:{padding:'6px 20px',borderRadius:6,border:'none',cursor:'pointer',background:invView===v?SURF:SALT,color:invView===v?G:MUT,fontWeight:700,fontSize:13,boxShadow:invView===v?'0 1px 4px rgba(0,0,0,.1)':'none'}},v==='levels'?'📊 Stock Levels':'📋 Lot History'))),
@@ -1614,7 +1614,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
               React.createElement('span',{style:{background:GLT,color:G,borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700}},pLots.reduce((s,l)=>s+l.qty,0)+' units'):
               React.createElement('span',{style:{color:MUT,fontSize:12}},'none')),
             React.createElement('td',{style:{padding:'10px 12px'}},
-              React.createElement('button',{onClick:()=>{setF({...blankLot,productId:p.id});setShow(true);},style:{background:GLT,border:`1px solid ${G}`,borderRadius:6,cursor:'pointer',padding:'3px 8px',fontSize:12,color:G,fontWeight:700}},'+Stock')));
+              React.createElement('button',{onClick:()=>{setF({...blankLot,productId:p.id});setShowAddLot(true);},style:{background:GLT,border:`1px solid ${G}`,borderRadius:6,cursor:'pointer',padding:'3px 8px',fontSize:12,color:G,fontWeight:700}},'+Stock')));
         })))),
 
     invView==='history'&&React.createElement('div',{style:{marginTop:8}},
@@ -1637,7 +1637,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
                 React.createElement('span',{style:{color:MUT,fontSize:12}},'None')),
               React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},lot.notes||'—'),
               React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},
-                React.createElement('button',{onClick:()=>{setF({productId:lot.productId,qty:String(lot.qty),dateAdded:lot.dateAdded,notes:lot.notes||'',profitSharing:lot.profitSharing||false,employeeShares:lot.employeeShares||[]});setEditLotId(lot.id);setShow(true);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16,marginRight:4}},'✏️'),
+                React.createElement('button',{onClick:()=>{setF({productId:lot.productId,qty:String(lot.qty),dateAdded:lot.dateAdded,notes:lot.notes||'',profitSharing:lot.profitSharing||false,employeeShares:lot.employeeShares||[]});setEditLotId(lot.id);setShowAddLot(true);},style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16,marginRight:4}},'✏️'),
                 React.createElement('button',{onClick:()=>deleteLot(lot.id),style:{background:'none',border:'none',cursor:'pointer',color:RED,fontSize:16}},'🗑️')));
           })))),
 
@@ -1652,7 +1652,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
 
     
 
-    show&&React.createElement(Modal,{title:editLotId?'Edit Inventory Lot':'Add Inventory',onClose:()=>{setShow(false);setEditLotId(null);setF(blankLot);},width:500},
+    showAddLot&&React.createElement(Modal,{title:editLotId?'Edit Inventory Lot':'Add Inventory',onClose:()=>{setShowAddLot(false);setEditLotId(null);setF(blankLot);},width:500},
       React.createElement(Fld,{label:'Product'},React.createElement(Sel,{value:f.productId,onChange:v=>sv('productId',v),options:[{value:'',label:'Select product...'},...activeProducts.map(p=>({value:p.id,label:p.emoji+' '+p.name+' (stock: '+p.stock+')'}))]})),
       React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
         React.createElement(Fld,{label:'Quantity to Add'},React.createElement(Inp,{value:f.qty,onChange:v=>sv('qty',v),type:'number',placeholder:'0'})),
@@ -1679,7 +1679,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
                 React.createElement('span',{style:{fontSize:13,color:MUT}},'% of profit')));
           }))),
       React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
-        React.createElement(Btn,{onClick:()=>setShow(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>setShowAddLot(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
         React.createElement(Btn,{onClick:saveLot,size:'lg',style:{flex:2,justifyContent:'center'},ch:editLotId?'Save Changes':'Add to Inventory'})))));
 }
 
