@@ -1585,8 +1585,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
   const activeProducts=products.filter(p=>p.active);
   const lotsWithSharing=(inventoryLots||[]).filter(l=>l.profitSharing&&l.qty>0);
 
-  return React.createElement('div',{style:{padding:16,maxWidth:900}},
-    React.createElement('div',{style:{padding:8,background:'red',color:'white',marginBottom:8,fontSize:12}},'DEBUG: products='+products.length+' active='+activeProducts.length+' invView='+invView),
+  return React.createElement('div',{style:{padding:16,maxWidth:900,overflowY:'auto',height:'100%'}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
       React.createElement('div',{style:{display:'flex',gap:8}},
@@ -1630,7 +1629,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
       })),
 
     invView==='levels'&&activeProducts.length===0&&React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No active products found. Add products in the Products tab.'),
-    invView==='levels'&&activeProducts.length>0&&React.createElement('div',{style:{overflowX:'auto'}},
+    invView==='levels'&&activeProducts.length>0&&React.createElement('div',{style:{overflowX:'auto',overflowY:'auto',maxHeight:'calc(100vh - 250px)'}},
       React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
         React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
           ['Product','Category','Stock','Price','Cost','Margin','Profit-Share Lots',''].map(h=>
