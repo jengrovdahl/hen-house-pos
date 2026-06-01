@@ -474,7 +474,8 @@ function ExpensesPage({expenses,setExpenses,mileage,setMileage,savedRoutes,setti
         setOcrStatus('🤖 Reading receipt...');
         try{
           const result=await ocrReceipt(base64,mimeType,settings?.anthropicKey||'',ocrMode);
-          if(result?.invoice_number)sv('notes',(f.notes?f.notes+' · ':'')+'Invoice #'+result.invoice_number+(result.due_date?' · Due: '+result.due_date:''));
+          if(result?.invoice_number)sv('invoiceNum',result.invoice_number);
+          if(result?.due_date)sv('dueDate',result.due_date);
           if(result){
             if(result.date)sv('date',result.date);
             if(result.vendor)sv('vendor',result.vendor);
