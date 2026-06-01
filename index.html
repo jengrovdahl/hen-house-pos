@@ -1586,6 +1586,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
   const lotsWithSharing=(inventoryLots||[]).filter(l=>l.profitSharing&&l.qty>0);
 
   return React.createElement('div',{style:{padding:16,maxWidth:900}},
+    React.createElement('div',{style:{padding:8,background:'red',color:'white',marginBottom:8,fontSize:12}},'DEBUG: products='+products.length+' active='+activeProducts.length+' invView='+invView),
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
       React.createElement('div',{style:{display:'flex',gap:8}},
