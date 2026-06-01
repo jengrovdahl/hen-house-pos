@@ -1590,7 +1590,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Inventory'),
       React.createElement('div',{style:{display:'flex',gap:8}},
         React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export Levels'}),
-        React.createElement(Btn,{onClick:()=>{alert('clicked, showAddLot will be: true');setF(blankLot);setShowAddLot(true);},ch:'+ Add Inventory'}))),
+        React.createElement(Btn,{onClick:()=>{setF(blankLot);setShowAddLot(true);},ch:'+ Add Inventory'}))),
 
     React.createElement('div',{style:{display:'flex',gap:0,marginBottom:16,background:SALT,borderRadius:8,padding:3,width:'fit-content'}},
       ['levels','history'].map(v=>React.createElement('button',{key:v,onClick:()=>setInvView(v),style:{padding:'6px 20px',borderRadius:6,border:'none',cursor:'pointer',background:invView===v?SURF:SALT,color:invView===v?G:MUT,fontWeight:700,fontSize:13,boxShadow:invView===v?'0 1px 4px rgba(0,0,0,.1)':'none'}},v==='levels'?'📊 Stock Levels':'📋 Lot History'))),
@@ -1650,7 +1650,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
           React.createElement('span',{style:{color:G,fontWeight:800}},f$(amt))):null;
       })),
 
-    
+    ),
 
     showAddLot&&React.createElement(Modal,{title:editLotId?'Edit Inventory Lot':'Add Inventory',onClose:()=>{setShowAddLot(false);setEditLotId(null);setF(blankLot);},width:500},
       React.createElement(Fld,{label:'Product'},React.createElement(Sel,{value:f.productId,onChange:v=>sv('productId',v),options:[{value:'',label:'Select product...'},...activeProducts.map(p=>({value:p.id,label:p.emoji+' '+p.name+' (stock: '+p.stock+')'}))]})),
@@ -1680,7 +1680,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
           }))),
       React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
         React.createElement(Btn,{onClick:()=>setShowAddLot(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
-        React.createElement(Btn,{onClick:saveLot,size:'lg',style:{flex:2,justifyContent:'center'},ch:editLotId?'Save Changes':'Add to Inventory'})))));
+        React.createElement(Btn,{onClick:saveLot,size:'lg',style:{flex:2,justifyContent:'center'},ch:editLotId?'Save Changes':'Add to Inventory'}))));
 }
 
 const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'settings',l:'Settings',e:'⚙️'}];
