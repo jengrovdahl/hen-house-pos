@@ -1650,27 +1650,7 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
           React.createElement('span',{style:{color:G,fontWeight:800}},f$(amt))):null;
       })),
 
-    invView==='levels'&&React.createElement('div',{style:{overflowX:'auto',marginTop:8}},
-      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
-        React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
-          ['Product','Category','Stock','Price','Cost','Margin','Profit-Share Lots',''].map(h=>
-            React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h)))),
-        React.createElement('tbody',null,activeProducts.map(p=>{
-          const pLots=(inventoryLots||[]).filter(l=>l.productId===p.id&&l.qty>0&&l.profitSharing);
-          const margin=p.cost>0?((p.price-p.cost)/p.price*100).toFixed(0)+'%':'—';
-          return React.createElement('tr',{key:p.id,style:{borderBottom:`1px solid ${BOR}`}},
-            React.createElement('td',{style:{padding:'10px 12px',fontWeight:700,color:TX}},p.emoji+' '+p.name),
-            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},p.cat),
-            React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:p.stock<=3?RED:G}},p.stock),
-            React.createElement('td',{style:{padding:'10px 12px'}},f$(p.price)),
-            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},p.cost>0?f$(p.cost):'—'),
-            React.createElement('td',{style:{padding:'10px 12px',color:MUT}},margin),
-            React.createElement('td',{style:{padding:'10px 12px'}},pLots.length>0?
-              React.createElement('span',{style:{background:GLT,color:G,borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700}},pLots.reduce((s,l)=>s+l.qty,0)+' units'):
-              React.createElement('span',{style:{color:MUT,fontSize:12}},'none')),
-            React.createElement('td',{style:{padding:'10px 12px'}},
-              React.createElement('button',{onClick:()=>{setF({...blankLot,productId:p.id});setShow(true);},style:{background:GLT,border:`1px solid ${G}`,borderRadius:6,cursor:'pointer',padding:'3px 8px',fontSize:12,color:G,fontWeight:700}},'+Stock')));
-        })))),
+    
 
     show&&React.createElement(Modal,{title:editLotId?'Edit Inventory Lot':'Add Inventory',onClose:()=>{setShow(false);setEditLotId(null);setF(blankLot);},width:500},
       React.createElement(Fld,{label:'Product'},React.createElement(Sel,{value:f.productId,onChange:v=>sv('productId',v),options:[{value:'',label:'Select product...'},...activeProducts.map(p=>({value:p.id,label:p.emoji+' '+p.name+' (stock: '+p.stock+')'}))]})),
