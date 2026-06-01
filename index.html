@@ -1249,7 +1249,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Timekeeping'),
       React.createElement('div',{style:{display:'flex',gap:8}},
-        React.createElement(Btn,{onClick:()=>{alert('clicked');setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
+        React.createElement(Btn,{onClick:()=>{setShowEmp(true);setEmpF(blankEmp);setEditEmpId(null);},color:MUT,outline:true,ch:'👤 Manage Employees'}),
         React.createElement(Btn,{onClick:()=>{setEntryF({...blankEntry,date:today()});setShowEntry(true);},ch:'+ Log Hours'}))),
 
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:16}},[
@@ -1285,8 +1285,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
             React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:G}},f$(e.wages)),
             React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},e.notes||'—'),
             React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},
-              React.createElement('button',{onClick:()=>deleteEntry(e.id),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'🗑️')))))),
-
+              React.createElement('button',{onClick:()=>deleteEntry(e.id),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:16}},'🗑️'))))),
     showEmp&&React.createElement(Modal,{title:'Manage Employees',onClose:()=>{setShowEmp(false);setEditEmpId(null);setEmpF(blankEmp);},width:460},
       React.createElement('div',{style:{marginBottom:16}},
         React.createElement('div',{style:{fontSize:13,fontWeight:800,color:TX,marginBottom:10}},editEmpId?'Edit Employee':'Add Employee'),
@@ -1315,7 +1314,7 @@ function TimekeepingPage({timeEntries,setTimeEntries,employees,setEmployees,setE
         React.createElement(Fld,{label:'Notes (optional)'},React.createElement(Inp,{value:entryF.notes,onChange:v=>setEntryF(p=>({...p,notes:v})),placeholder:'e.g. BP Saturday Market'})),
         React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
           React.createElement(Btn,{onClick:()=>setShowEntry(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
-          React.createElement(Btn,{onClick:saveEntry,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save & Add to Expenses'}))))));
+          React.createElement(Btn,{onClick:saveEntry,size:'lg',style:{flex:2,justifyContent:'center'},ch:'Save & Add to Expenses'})))))));
 }
 
 const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'settings',l:'Settings',e:'⚙️'}];
