@@ -1715,6 +1715,24 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
   };
 
   const owed=calcOwed();
+
+  // Calculate projected (unsold profit-share inventory at current prices)
+  const calcProjected=()=>{
+    const proj={};
+    (inventoryLots||[]).forEach(lot=>{
+      if(!lot.profitSharing||!lot.employeeShares?.length||lot.qty<=0)return;
+      const product=products.find(p=>p.id===lot.productId);
+      if(!product||!product.cost)return;
+      const projProfit=(product.price-product.cost)*lot.qty;
+      lot.employeeShares.forEach(es=>{
+        const share=parseFloat((projProfit*(es.pct/100)).toFixed(2));
+        proj[es.employeeId]=(proj[es.employeeId]||0)+share;
+      });
+    });
+    return proj;
+  };
+  const projected=calcProjected();
+  const totalProjected=Object.values(projected).reduce((s,v)=>s+v,0);
   const totalPaid=(profitSharePayments||[]).filter(p=>(!df||p.date>=df)&&(!dt||p.date<=dt)).reduce((s,p)=>s+p.amount,0);
   const totalOwed=Object.values(owed).reduce((s,e)=>s+e.total,0);
   const paidForEmployee=empId=>(profitSharePayments||[]).filter(p=>p.employeeId===empId&&(!df||p.date>=df)&&(!dt||p.date<=dt)).reduce((s,p)=>s+p.amount,0);
@@ -1748,8 +1766,9 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
       React.createElement(Fld,{label:'To'},React.createElement(Inp,{value:dt,onChange:setDt,type:'date',style:{width:160}})),
       React.createElement(Btn,{onClick:()=>{setDf('');setDt('');},color:MUT,outline:true,size:'sm',ch:'Clear'})),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:20}},[
-      {l:'Total Earned',v:f$(totalOwed),c:G,bg:GLT},
-      {l:'Total Paid',v:f$(totalPaid),c:A,bg:ALT},
+      {l:'Projected (not yet earned)',v:f$(totalProjected),c:PUR,bg:'#F3EEFF'},
+      {l:'Earned',v:f$(totalOwed),c:G,bg:GLT},
+      {l:'Paid Out',v:f$(totalPaid),c:A,bg:ALT},
       {l:'Outstanding',v:f$(Math.max(0,totalOwed-totalPaid)),c:totalOwed-totalPaid>0?RED:MUT,bg:totalOwed-totalPaid>0?REDLT:SALT},
     ].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},
       React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),
@@ -1777,6 +1796,8 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
               React.createElement('td',{style:{padding:'6px 10px',color:MUT}},item.units),
               React.createElement('td',{style:{padding:'6px 10px',color:MUT}},item.pct+'%'),
               React.createElement('td',{style:{padding:'6px 10px',fontWeight:700,color:G}},f$(item.share)))))),
+        projected[e.employeeId]>0&&React.createElement('div',{style:{background:'#F3EEFF',borderRadius:6,padding:'6px 10px',marginBottom:8,fontSize:12,color:PUR,fontWeight:700}},
+          '🔮 Projected (if remaining lots sell): '+f$(projected[e.employeeId]||0)+' — not yet earned'),
         payments.length>0&&React.createElement('div',{style:{marginBottom:10,fontSize:12,color:MUT}},
           'Payments: ',payments.map(p=>React.createElement('span',{key:p.id,style:{marginRight:8}},fDate(p.date)+' '+p.method+(p.checkNum?' #'+p.checkNum:'')+' — '+f$(p.amount)))),
         balance>0&&React.createElement(Btn,{onClick:()=>{setPayModal({employeeId:e.employeeId,employeeName:emp.name,amount:balance});setPayF({method:'Cash',checkNum:'',date:today()});},ch:'💰 Record Payment of '+f$(balance),color:G}));
