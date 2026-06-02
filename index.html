@@ -1722,8 +1722,8 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
     (inventoryLots||[]).forEach(lot=>{
       if(!lot.profitSharing||!lot.employeeShares?.length||lot.qty<=0)return;
       const product=products.find(p=>p.id===lot.productId);
-      if(!product||!product.cost)return;
-      const projProfit=(product.price-product.cost)*lot.qty;
+      if(!product)return;
+      const projProfit=(product.price-(product.cost||0))*lot.qty;
       lot.employeeShares.forEach(es=>{
         const share=parseFloat((projProfit*(es.pct/100)).toFixed(2));
         proj[es.employeeId]=(proj[es.employeeId]||0)+share;
