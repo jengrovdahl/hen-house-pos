@@ -59,6 +59,7 @@ function keyToTable(k){
   if(k.startsWith('hhc_time'))return'time_entries';
   if(k.startsWith('hhc_employees'))return'employees';
   if(k.startsWith('hhc_inv_lots'))return'inventory_lots';
+  if(k.startsWith('hhc_psp'))return'profit_share_payments';
   if(k.startsWith('hhc_settings'))return'settings';
   if(k.startsWith('hhc_pnd_'))return'pending_sq';
   return null;
@@ -1683,8 +1684,115 @@ function InventoryPage({products,setProducts,employees,inventoryLots,setInventor
         React.createElement(Btn,{onClick:saveLot,size:'lg',style:{flex:2,justifyContent:'center'},ch:editLotId?'Save Changes':'Add to Inventory'}))));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'settings',l:'Settings',e:'⚙️'}];
-const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','inventory','settings'];
+
+function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,setProfitSharePayments,showToast}){
+  const [df,setDf]=useState('');
+  const [dt,setDt]=useState('');
+  const [payModal,setPayModal]=useState(null);
+  const [payF,setPayF]=useState({method:'Cash',checkNum:'',date:''});
+
+  const calcOwed=()=>{
+    const owed={};
+    (inventoryLots||[]).forEach(lot=>{
+      if(!lot.profitSharing||!lot.employeeShares?.length)return;
+      const product=products.find(p=>p.id===lot.productId);
+      if(!product)return;
+      (lot.consumed||[]).forEach(sale=>{
+        if(df&&sale.date<df)return;
+        if(dt&&sale.date>dt)return;
+        const profit=(sale.salePrice-(product.cost||0))*sale.qty;
+        lot.employeeShares.forEach(es=>{
+          const share=parseFloat((profit*(es.pct/100)).toFixed(2));
+          if(!owed[es.employeeId])owed[es.employeeId]={employeeId:es.employeeId,total:0,items:[]};
+          owed[es.employeeId].total=parseFloat((owed[es.employeeId].total+share).toFixed(2));
+          const existing=owed[es.employeeId].items.find(i=>i.productId===lot.productId);
+          if(existing){existing.share=parseFloat((existing.share+share).toFixed(2));existing.units+=sale.qty;}
+          else owed[es.employeeId].items.push({productId:lot.productId,productName:product.name,emoji:product.emoji||'🛍️',share,units:sale.qty,pct:es.pct});
+        });
+      });
+    });
+    return owed;
+  };
+
+  const owed=calcOwed();
+  const totalPaid=(profitSharePayments||[]).filter(p=>(!df||p.date>=df)&&(!dt||p.date<=dt)).reduce((s,p)=>s+p.amount,0);
+  const totalOwed=Object.values(owed).reduce((s,e)=>s+e.total,0);
+  const paidForEmployee=empId=>(profitSharePayments||[]).filter(p=>p.employeeId===empId&&(!df||p.date>=df)&&(!dt||p.date<=dt)).reduce((s,p)=>s+p.amount,0);
+
+  const recordPayment=()=>{
+    if(!payModal)return;
+    setProfitSharePayments(prev=>[...prev,{id:uid(),employeeId:payModal.employeeId,amount:payModal.amount,date:payF.date||today(),method:payF.method,checkNum:payF.checkNum||'',notes:payModal.employeeName}]);
+    showToast('Payment of '+f$(payModal.amount)+' recorded for '+payModal.employeeName);
+    setPayModal(null);setPayF({method:'Cash',checkNum:'',date:''});
+  };
+
+  const exportCSV=()=>{
+    const rows=[];
+    Object.values(owed).forEach(e=>{
+      const emp=employees.find(x=>x.id===e.employeeId);
+      const paid=paidForEmployee(e.employeeId);
+      e.items.forEach(item=>rows.push([emp?.name||'Unknown',item.productName,item.units,item.pct+'%',item.share]));
+      rows.push([emp?.name||'Unknown','TOTAL','','',e.total,'Paid:',paid,'Balance:',Math.max(0,e.total-paid)]);
+    });
+    const csv=[['Employee','Product','Units','Share %','Amount'],...rows].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+    const b=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='profit-share.csv';a.click();
+  };
+
+  return React.createElement('div',{style:{padding:16,maxWidth:800}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Profit Sharing'),
+      React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export CSV'})),
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}},
+      React.createElement(Fld,{label:'From'},React.createElement(Inp,{value:df,onChange:setDf,type:'date',style:{width:160}})),
+      React.createElement(Fld,{label:'To'},React.createElement(Inp,{value:dt,onChange:setDt,type:'date',style:{width:160}})),
+      React.createElement(Btn,{onClick:()=>{setDf('');setDt('');},color:MUT,outline:true,size:'sm',ch:'Clear'})),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10,marginBottom:20}},[
+      {l:'Total Earned',v:f$(totalOwed),c:G,bg:GLT},
+      {l:'Total Paid',v:f$(totalPaid),c:A,bg:ALT},
+      {l:'Outstanding',v:f$(Math.max(0,totalOwed-totalPaid)),c:totalOwed-totalPaid>0?RED:MUT,bg:totalOwed-totalPaid>0?REDLT:SALT},
+    ].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),
+      React.createElement('div',{style:{fontSize:20,fontWeight:800,color:s.c}},s.v)))),
+    Object.keys(owed).length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No profit sharing data yet. Add inventory lots with profit sharing enabled, then make sales!'):
+    Object.values(owed).map(e=>{
+      const emp=employees.find(x=>x.id===e.employeeId);if(!emp)return null;
+      const paid=paidForEmployee(e.employeeId);
+      const balance=Math.max(0,e.total-paid);
+      const payments=(profitSharePayments||[]).filter(p=>p.employeeId===e.employeeId);
+      return React.createElement('div',{key:e.employeeId,style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:16,marginBottom:14}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:16,fontWeight:800,color:TX}},emp.name)),
+          React.createElement('div',{style:{textAlign:'right'}},
+            React.createElement('div',{style:{fontSize:18,fontWeight:800,color:G}},f$(e.total)+' earned'),
+            React.createElement('div',{style:{fontSize:13,color:A}},f$(paid)+' paid'),
+            balance>0&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED}},f$(balance)+' outstanding'))),
+        React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13,marginBottom:10}},
+          React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},
+            ['Product','Units Sold','Share %','Amount'].map(h=>React.createElement('th',{key:h,style:{padding:'6px 10px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`}},h)))),
+          React.createElement('tbody',null,e.items.map(item=>
+            React.createElement('tr',{key:item.productId,style:{borderBottom:`1px solid ${BOR}`}},
+              React.createElement('td',{style:{padding:'6px 10px'}},item.emoji+' '+item.productName),
+              React.createElement('td',{style:{padding:'6px 10px',color:MUT}},item.units),
+              React.createElement('td',{style:{padding:'6px 10px',color:MUT}},item.pct+'%'),
+              React.createElement('td',{style:{padding:'6px 10px',fontWeight:700,color:G}},f$(item.share)))))),
+        payments.length>0&&React.createElement('div',{style:{marginBottom:10,fontSize:12,color:MUT}},
+          'Payments: ',payments.map(p=>React.createElement('span',{key:p.id,style:{marginRight:8}},fDate(p.date)+' '+p.method+(p.checkNum?' #'+p.checkNum:'')+' — '+f$(p.amount)))),
+        balance>0&&React.createElement(Btn,{onClick:()=>{setPayModal({employeeId:e.employeeId,employeeName:emp.name,amount:balance});setPayF({method:'Cash',checkNum:'',date:today()});},ch:'💰 Record Payment of '+f$(balance),color:G}));
+    }),
+    payModal&&React.createElement(Modal,{title:'Record Payment — '+payModal.employeeName,onClose:()=>setPayModal(null),width:420},
+      React.createElement('div',{style:{background:GLT,borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:14,fontWeight:800,color:G}},'Amount: '+f$(payModal.amount)),
+      React.createElement(Fld,{label:'Payment Date'},React.createElement(Inp,{value:payF.date,onChange:v=>setPayF(p=>({...p,date:v})),type:'date'})),
+      React.createElement(Fld,{label:'Payment Method'},React.createElement(Sel,{value:payF.method,onChange:v=>setPayF(p=>({...p,method:v})),options:['Cash','Check']})),
+      payF.method==='Check'&&React.createElement(Fld,{label:'Check Number (optional)'},React.createElement(Inp,{value:payF.checkNum,onChange:v=>setPayF(p=>({...p,checkNum:v})),placeholder:'e.g. 1042'})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setPayModal(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:recordPayment,size:'lg',style:{flex:2,justifyContent:'center'},ch:'✓ Record Payment'}))));
+}
+
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'profitshare',l:'Profit Share',e:'💰'},{id:'settings',l:'Settings',e:'⚙️'}];
+const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','inventory','profitshare','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
   return React.createElement('div',{style:{width:190,background:G,display:'flex',flexDirection:'column',flexShrink:0,minHeight:'100%'}},
@@ -1719,13 +1827,14 @@ function App(){
   const [timeEntries,setTimeEntries]=useState([]);
   const [employees,setEmployees]=useState([]);
   const [inventoryLots,setInventoryLots]=useState([]);
+  const [profitSharePayments,setProfitSharePayments]=useState([]);
   const [cart,setCart]=useState([]);const [checkout,setCheckout]=useState(false);
   const [toast,setToast]=useState(null);const [ready,setReady]=useState(false);
   const [pendingSq,setPendingSq]=useState(null);const [mobile,setMobile]=useState(window.innerWidth<900);
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setReady(true);}load();},[]);
+  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il,psp]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[]),sg('hhc_psp',[]).catch(()=>[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
@@ -1738,6 +1847,7 @@ function App(){
   useEffect(()=>{if(ready)ss('hhc_time',timeEntries);},[timeEntries,ready]);
   useEffect(()=>{if(ready)ss('hhc_employees',employees);},[employees,ready]);
   useEffect(()=>{if(ready)ss('hhc_inv_lots',inventoryLots);},[inventoryLots,ready]);
+  useEffect(()=>{if(ready)ss('hhc_psp',profitSharePayments);},[profitSharePayments,ready]);
   // pendingSq confirmation handled by SquareConfirmModal
   const showToast=msg=>setToast(msg);const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const completeSale=useCallback((saleData)=>{
@@ -1767,8 +1877,8 @@ function App(){
   },[cart,giftCards]);
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
-  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,inventoryLots,setInventoryLots,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'inventory':return React.createElement(InventoryPage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,inventoryLots,setInventoryLots,profitSharePayments,setProfitSharePayments,settings,setSettings,showToast,isMobile:mobile};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'inventory':return React.createElement(InventoryPage,props);case 'profitshare':return React.createElement(ProfitSharePage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
