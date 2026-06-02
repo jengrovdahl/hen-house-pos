@@ -1773,6 +1773,23 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
     ].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},
       React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),
       React.createElement('div',{style:{fontSize:20,fontWeight:800,color:s.c}},s.v)))),
+    employees.length>0&&React.createElement('div',{style:{marginBottom:20}},
+      React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:10}},'By Employee'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}},
+        employees.map(emp=>{
+          const empOwed=(owed[emp.id]?.total)||0;
+          const empPaid=paidForEmployee(emp.id);
+          const empBalance=Math.max(0,empOwed-empPaid);
+          const empProjected=projected[emp.id]||0;
+          return React.createElement('div',{key:emp.id,style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:10,padding:14}},
+            React.createElement('div',{style:{fontSize:14,fontWeight:800,color:TX,marginBottom:8}},emp.name),
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,fontSize:12}},
+              React.createElement('span',{style:{color:MUT}},'Projected'),React.createElement('span',{style:{color:PUR,fontWeight:700}},f$(empProjected)),
+              React.createElement('span',{style:{color:MUT}},'Earned'),React.createElement('span',{style:{color:G,fontWeight:700}},f$(empOwed)),
+              React.createElement('span',{style:{color:MUT}},'Paid'),React.createElement('span',{style:{color:A,fontWeight:700}},f$(empPaid)),
+              React.createElement('span',{style:{color:MUT}},'Balance'),React.createElement('span',{style:{color:empBalance>0?RED:MUT,fontWeight:700}},f$(empBalance))));
+        }))),
+
     Object.keys(owed).length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:48,fontSize:15}},'No profit sharing data yet. Add inventory lots with profit sharing enabled, then make sales!'):
     Object.values(owed).map(e=>{
       const emp=employees.find(x=>x.id===e.employeeId);if(!emp)return null;
