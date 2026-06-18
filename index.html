@@ -139,6 +139,12 @@ const Toast=({msg,onDone})=>{useEffect(()=>{const t=setTimeout(onDone,2800);retu
 const Modal=({title,onClose,children,width=460})=>React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(28,23,16,.6)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}},React.createElement('div',{style:{background:SURF,borderRadius:16,width:'100%',maxWidth:width,maxHeight:'90vh',overflow:'auto',boxShadow:'0 12px 48px rgba(0,0,0,.25)'}},React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${BOR}`,position:'sticky',top:0,background:SURF,zIndex:1}},React.createElement('span',{style:{fontSize:17,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},title),React.createElement('button',{onClick:onClose,style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:22}},'✕')),React.createElement('div',{style:{padding:20}},children)));
 
 function POSPage({products,cart,setCart,onCheckout,isMobile}){
+  const [customPriceModal,setCustomPriceModal]=useState(null);
+  const [customPrice,setCustomPrice]=useState('');
+  const [editCartIdx,setEditCartIdx]=useState(null);
+  const [editCartPrice,setEditCartPrice]=useState('');
+  const [customDisc,setCustomDisc]=useState('');
+  const [showCustomDisc,setShowCustomDisc]=useState(false);
   const [cat,setCat]=useState('All');const [showCart,setShowCart]=useState(false);
   const usedCats=['All',...PROD_CATS.filter(c=>products.some(p=>p.cat===c&&p.active))];
   const filtered=products.filter(p=>p.active&&(cat==='All'||p.cat===cat));
@@ -147,7 +153,8 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const hasTax=cart.some(i=>i.taxable);
   const tax=cart.reduce((s,i)=>s+(i.taxable?+(i.ep*i.qty-(i.ep*i.qty/(1+MN_TAX))).toFixed(2):0),0);
   const total=sub;
-  const add=p=>{const ep=effPrice(p);setCart(prev=>{const ex=prev.find(i=>i.id===p.id);if(ex)return prev.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i);return[...prev,{id:p.id,name:p.name,price:p.price,ep,taxable:p.taxable,qty:1,emoji:p.emoji,onSale:isOnSale(p)}];});};
+  const doAdd=(p,priceOverride)=>{const ep=priceOverride||effPrice(p);setCart(prev=>{const ex=prev.find(i=>i.id===p.id&&!p.isCustom);if(ex&&!p.isCustom)return prev.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i);return[...prev,{id:p.id,name:p.name,price:priceOverride||p.price,ep,taxable:p.taxable,qty:1,emoji:p.emoji,onSale:isOnSale(p),isCustom:p.isCustom,cartKey:p.isCustom?Math.random():p.id}];});};
+  const add=p=>{if(p.isCustom){setCustomPriceModal(p);setCustomPrice('');return;}doAdd(p);};
   const upd=(id,d)=>setCart(prev=>prev.map(i=>i.id===id?{...i,qty:i.qty+d}:i).filter(i=>i.qty>0));
   const CartPanel=()=>React.createElement('div',{style:{background:SURF,borderLeft:isMobile?'none':`1px solid ${BOR}`,display:'flex',flexDirection:'column',minWidth:isMobile?'auto':320,height:'100%'}},
     React.createElement('div',{style:{padding:'14px 16px',borderBottom:`1px solid ${BOR}`,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}},
@@ -172,7 +179,8 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
       hasTax&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,color:A,marginBottom:3}},React.createElement('span',null,'Sales Tax (7.375%)'),f$(tax)),
       React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:18,fontWeight:800,color:TX,paddingTop:8,borderTop:`1px solid ${BOR}`,marginBottom:14}},'Total',f$(total)),
       React.createElement(Btn,{onClick:onCheckout,size:'lg',style:{width:'100%',justifyContent:'center'},ch:'Charge '+f$(total)}),
-      React.createElement('button',{onClick:()=>setCart([]),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13,width:'100%',marginTop:8,padding:4}},'Clear Order')));
+      React.createElement('button',{onClick:()=>setShowCustomDisc(true),style:{background:'none',border:`1px dashed ${A}`,borderRadius:6,cursor:'pointer',color:A,fontSize:13,width:'100%',marginTop:6,padding:4}},'+ Custom Discount'),
+      React.createElement('button',{onClick:()=>setCart([]),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13,width:'100%',marginTop:4,padding:4}},'Clear Order')));
   return React.createElement('div',{style:{display:'flex',height:'100%',overflow:'hidden'}},
     React.createElement('div',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column'}},
       React.createElement('div',{style:{display:'flex',gap:8,padding:'10px 14px',overflowX:'auto',borderBottom:`1px solid ${BOR}`,background:SURF,flexShrink:0}},
@@ -1844,6 +1852,22 @@ function BottomNav({page,setPage,cartCount,sqOk}){
   const primary=NAV.slice(0,4);
   const moreItems=NAV.filter(n=>MORE_IDS.includes(n.id));
   return React.createElement(React.Fragment,null,
+    customPriceModal&&React.createElement(Modal,{title:'Set Price — '+customPriceModal.name,onClose:()=>setCustomPriceModal(null),width:360},
+      React.createElement(Fld,{label:'Price ($)'},React.createElement(Inp,{value:customPrice,onChange:setCustomPrice,type:'number',placeholder:'0.00',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setCustomPriceModal(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{if(!customPrice)return;doAdd({...customPriceModal,price:+customPrice},+customPrice);setCustomPriceModal(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Add to Cart'}))),
+    editCartIdx!==null&&React.createElement(Modal,{title:'Edit Price',onClose:()=>setEditCartIdx(null),width:360},
+      React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:8}},cart[editCartIdx]?.name),
+      React.createElement(Fld,{label:'New Unit Price ($)'},React.createElement(Inp,{value:editCartPrice,onChange:setEditCartPrice,type:'number',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setEditCartIdx(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{setCart(prev=>prev.map((i,idx)=>idx===editCartIdx?{...i,ep:+editCartPrice,price:+editCartPrice}:i));setEditCartIdx(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Update Price'}))),
+    showCustomDisc&&React.createElement(Modal,{title:'Custom Discount',onClose:()=>setShowCustomDisc(false),width:360},
+      React.createElement(Fld,{label:'Discount Amount ($)'},React.createElement(Inp,{value:customDisc,onChange:setCustomDisc,type:'number',placeholder:'0.00',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setShowCustomDisc(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{if(!customDisc)return;setCart(prev=>[...prev,{id:'disc_'+uid(),name:'Custom Discount',price:-Math.abs(+customDisc),ep:-Math.abs(+customDisc),taxable:false,qty:1,emoji:'🏷️',isDiscount:true,cartKey:'disc_'+Date.now()}]);setCustomDisc('');setShowCustomDisc(false);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Apply Discount'}))),
     showMore&&React.createElement('div',{onClick:()=>setShowMore(false),style:{position:'fixed',inset:0,zIndex:98}}),
     showMore&&React.createElement('div',{style:{position:'fixed',bottom:56,left:0,right:0,background:SURF,borderTop:`1px solid ${BOR}`,zIndex:99,display:'flex',flexWrap:'wrap',padding:8,gap:6}},
       moreItems.map(n=>React.createElement('button',{key:n.id,onClick:()=>{setPage(n.id);setShowMore(false);},style:{flex:'1 0 calc(33% - 6px)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 4px',background:page===n.id?GLT:SALT,border:`1px solid ${page===n.id?G:BOR}`,borderRadius:10,cursor:'pointer',color:page===n.id?G:TX}},
