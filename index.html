@@ -181,7 +181,24 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
       React.createElement(Btn,{onClick:onCheckout,size:'lg',style:{width:'100%',justifyContent:'center'},ch:'Charge '+f$(total)}),
       React.createElement('button',{onClick:()=>setShowCustomDisc(true),style:{background:'none',border:`1px dashed ${A}`,borderRadius:6,cursor:'pointer',color:A,fontSize:13,width:'100%',marginTop:6,padding:4}},'+ Custom Discount'),
       React.createElement('button',{onClick:()=>setCart([]),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13,width:'100%',marginTop:4,padding:4}},'Clear Order')));
-  return React.createElement('div',{style:{display:'flex',height:'100%',overflow:'hidden'}},
+  return React.createElement(React.Fragment,null,
+    customPriceModal&&React.createElement(Modal,{title:'Set Price — '+customPriceModal.name,onClose:()=>setCustomPriceModal(null),width:360},
+      React.createElement(Fld,{label:'Price ($)'},React.createElement(Inp,{value:customPrice,onChange:setCustomPrice,type:'number',placeholder:'0.00',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setCustomPriceModal(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{if(!customPrice)return;doAdd({...customPriceModal,price:+customPrice},+customPrice);setCustomPriceModal(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Add to Cart'}))),
+    editCartIdx!==null&&React.createElement(Modal,{title:'Edit Price',onClose:()=>setEditCartIdx(null),width:360},
+      React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:8}},cart[editCartIdx]?.name),
+      React.createElement(Fld,{label:'New Unit Price ($)'},React.createElement(Inp,{value:editCartPrice,onChange:setEditCartPrice,type:'number',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setEditCartIdx(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{setCart(prev=>prev.map((i,idx)=>idx===editCartIdx?{...i,ep:+editCartPrice,price:+editCartPrice}:i));setEditCartIdx(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Update Price'}))),
+    showCustomDisc&&React.createElement(Modal,{title:'Custom Discount',onClose:()=>setShowCustomDisc(false),width:360},
+      React.createElement(Fld,{label:'Discount Amount ($)'},React.createElement(Inp,{value:customDisc,onChange:setCustomDisc,type:'number',placeholder:'0.00',autoFocus:true})),
+      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
+        React.createElement(Btn,{onClick:()=>setShowCustomDisc(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+        React.createElement(Btn,{onClick:()=>{if(!customDisc)return;setCart(prev=>[...prev,{id:'disc_'+uid(),name:'Custom Discount',price:-Math.abs(+customDisc),ep:-Math.abs(+customDisc),taxable:false,qty:1,emoji:'🏷️',isDiscount:true,cartKey:'disc_'+Date.now()}]);setCustomDisc('');setShowCustomDisc(false);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Apply Discount'}))),
+    React.createElement('div',{style:{display:'flex',height:'100%',overflow:'hidden'}},
     React.createElement('div',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column'}},
       React.createElement('div',{style:{display:'flex',gap:8,padding:'10px 14px',overflowX:'auto',borderBottom:`1px solid ${BOR}`,background:SURF,flexShrink:0}},
         usedCats.map(c=>React.createElement('button',{key:c,onClick:()=>setCat(c),style:{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',background:cat===c?G:SALT,color:cat===c?'#fff':MUT,fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}},c))),
@@ -199,7 +216,7 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
     !isMobile&&React.createElement(CartPanel),
     isMobile&&cQty>0&&!showCart&&React.createElement('button',{onClick:()=>setShowCart(true),style:{position:'fixed',bottom:72,right:16,background:G,color:'#fff',borderRadius:28,padding:'12px 20px',border:'none',cursor:'pointer',fontSize:15,fontWeight:800,boxShadow:'0 4px 16px rgba(45,92,26,.45)',zIndex:100}},'🛒 '+cQty+' · '+f$(total)),
     isMobile&&showCart&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(28,23,16,.5)',zIndex:200}},
-      React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:SURF,borderRadius:'20px 20px 0 0',maxHeight:'85vh',overflow:'auto',display:'flex',flexDirection:'column'}},React.createElement(CartPanel))));
+      React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:SURF,borderRadius:'20px 20px 0 0',maxHeight:'85vh',overflow:'auto',display:'flex',flexDirection:'column'}},React.createElement(CartPanel)))));
 }
 
 const MN_LOCATIONS=[
@@ -1852,22 +1869,6 @@ function BottomNav({page,setPage,cartCount,sqOk}){
   const primary=NAV.slice(0,4);
   const moreItems=NAV.filter(n=>MORE_IDS.includes(n.id));
   return React.createElement(React.Fragment,null,
-    customPriceModal&&React.createElement(Modal,{title:'Set Price — '+customPriceModal.name,onClose:()=>setCustomPriceModal(null),width:360},
-      React.createElement(Fld,{label:'Price ($)'},React.createElement(Inp,{value:customPrice,onChange:setCustomPrice,type:'number',placeholder:'0.00',autoFocus:true})),
-      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
-        React.createElement(Btn,{onClick:()=>setCustomPriceModal(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
-        React.createElement(Btn,{onClick:()=>{if(!customPrice)return;doAdd({...customPriceModal,price:+customPrice},+customPrice);setCustomPriceModal(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Add to Cart'}))),
-    editCartIdx!==null&&React.createElement(Modal,{title:'Edit Price',onClose:()=>setEditCartIdx(null),width:360},
-      React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:8}},cart[editCartIdx]?.name),
-      React.createElement(Fld,{label:'New Unit Price ($)'},React.createElement(Inp,{value:editCartPrice,onChange:setEditCartPrice,type:'number',autoFocus:true})),
-      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
-        React.createElement(Btn,{onClick:()=>setEditCartIdx(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
-        React.createElement(Btn,{onClick:()=>{setCart(prev=>prev.map((i,idx)=>idx===editCartIdx?{...i,ep:+editCartPrice,price:+editCartPrice}:i));setEditCartIdx(null);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Update Price'}))),
-    showCustomDisc&&React.createElement(Modal,{title:'Custom Discount',onClose:()=>setShowCustomDisc(false),width:360},
-      React.createElement(Fld,{label:'Discount Amount ($)'},React.createElement(Inp,{value:customDisc,onChange:setCustomDisc,type:'number',placeholder:'0.00',autoFocus:true})),
-      React.createElement('div',{style:{display:'flex',gap:10,marginTop:12}},
-        React.createElement(Btn,{onClick:()=>setShowCustomDisc(false),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
-        React.createElement(Btn,{onClick:()=>{if(!customDisc)return;setCart(prev=>[...prev,{id:'disc_'+uid(),name:'Custom Discount',price:-Math.abs(+customDisc),ep:-Math.abs(+customDisc),taxable:false,qty:1,emoji:'🏷️',isDiscount:true,cartKey:'disc_'+Date.now()}]);setCustomDisc('');setShowCustomDisc(false);},size:'lg',style:{flex:2,justifyContent:'center'},ch:'Apply Discount'}))),
     showMore&&React.createElement('div',{onClick:()=>setShowMore(false),style:{position:'fixed',inset:0,zIndex:98}}),
     showMore&&React.createElement('div',{style:{position:'fixed',bottom:56,left:0,right:0,background:SURF,borderTop:`1px solid ${BOR}`,zIndex:99,display:'flex',flexWrap:'wrap',padding:8,gap:6}},
       moreItems.map(n=>React.createElement('button',{key:n.id,onClick:()=>{setPage(n.id);setShowMore(false);},style:{flex:'1 0 calc(33% - 6px)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 4px',background:page===n.id?GLT:SALT,border:`1px solid ${page===n.id?G:BOR}`,borderRadius:10,cursor:'pointer',color:page===n.id?G:TX}},
@@ -1896,7 +1897,12 @@ function App(){
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il,psp]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[]),sg('hhc_psp',[]).catch(()=>[])]);setProducts(pr||SEEDS);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);}load();},[]);
+  useEffect(()=>{async function load(){const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il,psp]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[]),sg('hhc_psp',[]).catch(()=>[])]);const loaded=pr||SEEDS;
+    const CUSTOM_CATS=["Honey","Eggs","Extracts","Freeze Dried Candy","Freeze Dried Fruit","Freeze Dried Ice Cream","Baked Goods - Breads","Baked Goods - Cookies & Sweets","Jams & Jellies","Canned Goods"];
+    const customs=CUSTOM_CATS.map(cat=>({id:'custom_'+cat.toLowerCase().replace(/[^a-z0-9]/g,'_'),name:'Custom '+cat,cat,price:0,cost:0,taxable:cat==='Freeze Dried Candy',stock:999,emoji:'✏️',active:true,isCustom:true}));
+    const merged=[...loaded];
+    customs.forEach(cp=>{if(!merged.find(p=>p.id===cp.id))merged.push(cp);});
+    setProducts(merged);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
