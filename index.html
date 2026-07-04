@@ -147,6 +147,8 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const [showCustomDisc,setShowCustomDisc]=useState(false);
   const [cat,setCat]=useState('All');const [showCart,setShowCart]=useState(false);
   const usedCats=['All',...PROD_CATS.filter(c=>products.some(p=>p.cat===c&&p.active))];
+  const [sortBy,setSortBy]=useState('alpha');
+  const SORT_OPTS=[{v:'alpha',l:'A–Z'},{v:'zalpha',l:'Z–A'},{v:'priceasc',l:'Price ↑'},{v:'pricedesc',l:'Price ↓'}];
   const filtered=products.filter(p=>p.active&&(cat==='All'||p.cat===cat));
   const cQty=cart.reduce((s,i)=>s+i.qty,0);
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
