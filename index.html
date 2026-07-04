@@ -149,7 +149,14 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const usedCats=['All',...PROD_CATS.filter(c=>products.some(p=>p.cat===c&&p.active))];
   const [sortBy,setSortBy]=useState('alpha');
   const SORT_OPTS=[{v:'alpha',l:'A–Z'},{v:'zalpha',l:'Z–A'},{v:'priceasc',l:'Price ↑'},{v:'pricedesc',l:'Price ↓'}];
-  const filtered=products.filter(p=>p.active&&(cat==='All'||p.cat===cat));
+  const filtered=products.filter(p=>p.active&&(cat==='All'||p.cat===cat)).sort((a,b)=>{
+    if(a.isCustom)return 1;if(b.isCustom)return -1;
+    if(sortBy==='alpha')return a.name.localeCompare(b.name);
+    if(sortBy==='zalpha')return b.name.localeCompare(a.name);
+    if(sortBy==='priceasc')return effPrice(a)-effPrice(b);
+    if(sortBy==='pricedesc')return effPrice(b)-effPrice(a);
+    return 0;
+  });
   const cQty=cart.reduce((s,i)=>s+i.qty,0);
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
   const hasTax=cart.some(i=>i.taxable);
