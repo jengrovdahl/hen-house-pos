@@ -366,7 +366,7 @@ function RefundModal({sale,onRefund,onClose}){
 }
 
 function SalesPage({sales,setSales,showToast}){
-  const [df,setDf]=useState('');const [dt,setDt]=useState('');const [refunding,setRefunding]=useState(null);
+  const [df,setDf]=useState(today());const [dt,setDt]=useState(today());const [refunding,setRefunding]=useState(null);
   const [editingSale,setEditingSale]=useState(null);
   const [editF,setEditF]=useState({});
   const [selected,setSelected]=useState(new Set());
