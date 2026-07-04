@@ -145,7 +145,7 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const [editCartPrice,setEditCartPrice]=useState('');
   const [customDisc,setCustomDisc]=useState('');
   const [showCustomDisc,setShowCustomDisc]=useState(false);
-  const [cat,setCat]=useState('All');const [showCart,setShowCart]=useState(false);
+  const [cat,setCat]=useState(()=>localStorage.getItem('hhc_pos_cat')||'All');const [showCart,setShowCart]=useState(false);
   const usedCats=['All',...PROD_CATS.filter(c=>products.some(p=>p.cat===c&&p.active))];
   const [sortBy,setSortBy]=useState('alpha');
   const SORT_OPTS=[{v:'alpha',l:'A–Z'},{v:'zalpha',l:'Z–A'},{v:'priceasc',l:'Price ↑'},{v:'pricedesc',l:'Price ↓'}];
@@ -210,7 +210,7 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
     React.createElement('div',{style:{display:'flex',height:'100%',overflow:'hidden'}},
     React.createElement('div',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column'}},
       React.createElement('div',{style:{display:'flex',gap:8,padding:'10px 14px',overflowX:'auto',borderBottom:`1px solid ${BOR}`,background:SURF,flexShrink:0}},
-        usedCats.map(c=>React.createElement('button',{key:c,onClick:()=>setCat(c),style:{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',background:cat===c?G:SALT,color:cat===c?'#fff':MUT,fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}},c))),
+        usedCats.map(c=>React.createElement('button',{key:c,onClick:()=>{setCat(c);localStorage.setItem('hhc_pos_cat',c);},style:{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',background:cat===c?G:SALT,color:cat===c?'#fff':MUT,fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}},c))),
       React.createElement('div',{style:{display:'flex',gap:4,padding:'6px 14px',background:SALT,borderBottom:`1px solid ${BOR}`,flexShrink:0}},
         SORT_OPTS.map(o=>React.createElement('button',{key:o.v,onClick:()=>setSortBy(o.v),style:{padding:'3px 10px',borderRadius:12,border:'none',cursor:'pointer',background:sortBy===o.v?G:SURF,color:sortBy===o.v?'#fff':MUT,fontSize:11,fontWeight:700}},o.l))),
       React.createElement('div',{style:{flex:1,overflow:'auto',padding:12,display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:10,alignContent:'start'}},
