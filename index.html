@@ -1921,7 +1921,24 @@ function App(){
     const customs=CUSTOM_CATS.map(cat=>({id:'custom_'+cat.toLowerCase().replace(/[^a-z0-9]/g,'_'),name:'Custom '+cat,cat,price:0,cost:0,taxable:cat==='Freeze Dried Candy',stock:999,emoji:'✏️',active:true,isCustom:true}));
     const merged=[...loaded];
     customs.forEach(cp=>{if(!merged.find(p=>p.id===cp.id))merged.push(cp);});
-    setProducts(merged);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);}catch(e){if(e.message&&(e.message.includes('fetch')||e.message.includes('network')||e.message.includes('Failed')))setDbError(true);else{setReady(true);}}}load();},[]);
+    setProducts(merged);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);
+      // If critical data is empty but we have local backup, use it
+      if((!sa||sa.length===0)){const lsSales=lsRestore('hhc_sales');if(lsSales?.length)setSales(lsSales);}
+      if((!pr||pr.length===0)){const lsProds=lsRestore('hhc_prods');if(lsProds?.length)setProducts(lsProds);}
+    }catch(e){
+      // On network failure, load from localStorage backup
+      const lsSales=lsRestore('hhc_sales');
+      const lsProds=lsRestore('hhc_prods');
+      const lsExp=lsRestore('hhc_exp');
+      const lsSt=lsRestore('hhc_settings');
+      if(lsSales)setSales(lsSales);
+      if(lsProds)setProducts(lsProds);
+      if(lsExp)setExpenses(lsExp);
+      if(lsSt)setSettings(lsSt);
+      if(e.message&&(e.message.includes('fetch')||e.message.includes('network')||e.message.includes('Failed')))setDbError(true);
+      else setReady(true);
+      setReady(true);
+    }}load();},[]);
   useEffect(()=>{if(ready)ss('hhc_prods',products);},[products,ready]);
   useEffect(()=>{if(ready)ss('hhc_sales',sales);},[sales,ready]);
   useEffect(()=>{if(ready)ss('hhc_exp',expenses);},[expenses,ready]);
