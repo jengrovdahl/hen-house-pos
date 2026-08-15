@@ -1922,9 +1922,7 @@ function App(){
     const merged=[...loaded];
     customs.forEach(cp=>{if(!merged.find(p=>p.id===cp.id))merged.push(cp);});
     setProducts(merged);setSales(sa);setExpenses(ex);setSettings(st);setCoupons(cp);setGiftCards(gc);setMileage(ml||[]);setSavedRoutes(sr||[]);setRawGoods(rg||[]);setTimeEntries(te||[]);setEmployees(em||[]);setInventoryLots(il||[]);setProfitSharePayments(psp||[]);setReady(true);
-      // If critical data is empty but we have local backup, use it
-      if((!sa||sa.length===0)){const lsSales=lsRestore('hhc_sales');if(lsSales?.length)setSales(lsSales);}
-      if((!pr||pr.length===0)){const lsProds=lsRestore('hhc_prods');if(lsProds?.length)setProducts(lsProds);}
+      // Supabase loaded successfully - localStorage backup already saved by ss()
     }catch(e){
       // On network failure, load from localStorage backup
       const lsSales=lsRestore('hhc_sales');
