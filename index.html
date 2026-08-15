@@ -1916,7 +1916,12 @@ function App(){
   useEffect(()=>{try{localStorage.setItem('hhc_page',page);}catch(e){}},[page]);
   useEffect(()=>{const fn=()=>setMobile(window.innerWidth<900);window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
   useEffect(()=>{const p=new URLSearchParams(window.location.search);const sqData=p.get('data');if(sqData){window.history.replaceState({},'',window.location.pathname);(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched'){try{const res=JSON.parse(atob(sqData));if(res.status==='ok'){completeSale({...sale,method:'Card (Square)',squareTxId:res.transaction_id});await sd('hhc_pnd_'+latest.pid);await sd('hhc_pnd_latest');}}catch(e){}}}}catch(e){}try{window.close();}catch(e){}})();}else if(ready){(async()=>{try{const latest=await sg('hhc_pnd_latest',null);if(latest?.pid){const sale=await sg('hhc_pnd_'+latest.pid,null);if(sale?.status==='launched')setPendingSq({pendingId:latest.pid,sale});}}catch(e){}})();}},[ready]);
-  useEffect(()=>{async function load(){try{const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il,psp]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[]),sg('hhc_psp',[]).catch(()=>[])]);const loaded=pr||SEEDS;
+  useEffect(()=>{
+  // Clear any bad empty-array backups from localStorage
+  ['hhc_sales','hhc_prods','hhc_exp'].forEach(k=>{
+    try{const v=localStorage.getItem('hhc_backup_'+k);if(v){const p=JSON.parse(v);if(!p||p.length===0)localStorage.removeItem('hhc_backup_'+k);}}catch(e){}
+  });
+  async function load(){try{const [pr,sa,ex,st,cp,gc,ml,sr,rg,te,em,il,psp]=await Promise.all([sg('hhc_prods',null),sg('hhc_sales',[]),sg('hhc_exp',[]),sg('hhc_settings',DEF_S),sg('hhc_coupons',[]),sg('hhc_gc',[]),sg('hhc_mileage',[]),sg('hhc_routes',[]),sg('hhc_raw',[]),sg('hhc_time',[]).catch(()=>[]),sg('hhc_employees',[]).catch(()=>[]),sg('hhc_inv_lots',[]).catch(()=>[]),sg('hhc_psp',[]).catch(()=>[])]);const loaded=pr||SEEDS;
     const CUSTOM_CATS=["Honey","Eggs","Extracts","Freeze Dried Candy","Freeze Dried Fruit","Freeze Dried Ice Cream","Baked Goods - Breads","Baked Goods - Cookies & Sweets","Jams & Jellies","Canned Goods"];
     const customs=CUSTOM_CATS.map(cat=>({id:'custom_'+cat.toLowerCase().replace(/[^a-z0-9]/g,'_'),name:'Custom '+cat,cat,price:0,cost:0,taxable:cat==='Freeze Dried Candy',stock:999,emoji:'✏️',active:true,isCustom:true}));
     const merged=[...loaded];
