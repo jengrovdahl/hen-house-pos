@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Hen House &amp; Co. POS</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -43,9 +42,31 @@ const f$=n=>`$${(+n||0).toFixed(2)}`;
 const fDate=d=>{if(!d)return 'No date';try{const dt=new Date(d+'T12:00');if(isNaN(dt))return d||'No date';return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d||'No date';}};
 const effPrice=p=>{if(!p.salePrice)return+p.price;const t=today();if((!p.saleStart||t>=p.saleStart)&&(!p.saleEnd||t<=p.saleEnd))return+p.salePrice;return+p.price;};
 const isOnSale=p=>effPrice(p)<+p.price;
-const SUPA_URL="https://jzzourafdmrgwimvfysk.supabase.co";
-const SUPA_KEY="sb_publishable_fZeGsOUG8V9qqxnYJk9djA_zcagYtx4";
-const supa=supabase.createClient(SUPA_URL,SUPA_KEY);
+// ── DATA: Turso via Cloudflare Worker (hen-house-proxy). Never pauses. ──
+// Every section is also cached on this device. If the app starts while offline it
+// runs from the cache and will NOT overwrite the server; new sales are queued on the
+// device and synced (idempotently) as soon as the connection is back.
+const API='https://hen-house-proxy.jengrovdahl.workers.dev';
+const NET={loadFailed:false,offline:false,listeners:new Set()};
+const LC='hhc_cache_';
+const PENDING_SALES='hhc_pending_sales';
+function lcGet(k){try{const r=localStorage.getItem(LC+k);return r?JSON.parse(r):undefined;}catch(e){return undefined;}}
+function lcSet(k,v){try{localStorage.setItem(LC+k,JSON.stringify(v));}catch(e){}}
+function loadPendingSales(){try{return JSON.parse(localStorage.getItem(PENDING_SALES)||'[]');}catch(e){return [];}}
+function savePendingSales(l){try{localStorage.setItem(PENDING_SALES,JSON.stringify(l));}catch(e){}}
+function netNotify(){const st={loadFailed:NET.loadFailed,offline:NET.offline,pending:loadPendingSales().length};NET.listeners.forEach(f=>{try{f(st);}catch(e){}});}
+async function api(path,opt){const r=await fetch(API+path,opt);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+let flushingSales=false;
+async function flushSales(){
+  if(flushingSales)return;flushingSales=true;
+  try{for(const sale of loadPendingSales()){
+    try{await api('/sale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sale})});savePendingSales(loadPendingSales().filter(x=>x.id!==sale.id));NET.offline=false;}
+    catch(e){NET.offline=true;break;}
+  }}finally{flushingSales=false;netNotify();}
+}
+function queueSale(sale){const l=loadPendingSales();if(!l.some(x=>x.id===sale.id)){l.push(sale);savePendingSales(l);}netNotify();flushSales();}
+setInterval(flushSales,30000);
+window.addEventListener('online',flushSales);
 
 // Table name mapping for keys
 function keyToTable(k){
@@ -89,30 +110,36 @@ async function ocrReceipt(imageData,mimeType,apiKey,mode='receipt'){
 }
 const MEM={};
 async function sg(k,fb){
+  const pnd=k.startsWith('hhc_pnd_');
   try{
-    const tbl=keyToTable(k);
-    if(!tbl)return MEM[k]!==undefined?MEM[k]:fb;
-    const id=k.startsWith('hhc_pnd_')?k:'main';
-    const {data,error}=await supa.from(tbl).select('data').eq('id',id).single();
-    if(error||!data)return fb;
-    return data.data;
-  }catch{return fb;}
+    const j=await api('/kv?key='+encodeURIComponent(k));
+    if(j.data===null||j.data===undefined)return fb;
+    if(!pnd)lcSet(k,j.data);
+    return j.data;
+  }catch(e){
+    if(pnd)return fb;
+    NET.loadFailed=true;NET.offline=true;netNotify();
+    const c=lcGet(k);return c!==undefined?c:fb;
+  }
 }
 async function ss(k,v){
-  try{
-    const tbl=keyToTable(k);
-    if(!tbl){MEM[k]=v;return;}
-    const id=k.startsWith('hhc_pnd_')?k:'main';
-    await supa.from(tbl).upsert({id,data:v});
-  }catch{MEM[k]=v;}
+  const pnd=k.startsWith('hhc_pnd_');
+  if(!pnd)lcSet(k,v);
+  if(NET.loadFailed&&!pnd)return; // started offline: never overwrite the server with this device's partial data
+  try{await api('/kv?key='+encodeURIComponent(k),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:v})});if(NET.offline){NET.offline=false;netNotify();}}
+  catch(e){NET.offline=true;netNotify();}
 }
 async function sd(k){
-  try{
-    const tbl=keyToTable(k);
-    if(!tbl){delete MEM[k];return;}
-    const id=k.startsWith('hhc_pnd_')?k:'main';
-    await supa.from(tbl).delete().eq('id',id);
-  }catch{delete MEM[k];}
+  try{await api('/kv?key='+encodeURIComponent(k),{method:'DELETE'});}catch(e){}
+}
+function NetBanner(){
+  const [st,setSt]=useState({loadFailed:NET.loadFailed,offline:NET.offline,pending:loadPendingSales().length});
+  useEffect(()=>{NET.listeners.add(setSt);flushSales();return()=>NET.listeners.delete(setSt);},[]);
+  if(!st.offline&&!st.loadFailed&&st.pending===0)return null;
+  const back=!st.offline&&st.pending===0;
+  const bg=back?'#2D5016':'#B23A2E';
+  const msg=back?'✅ Back online and all sales are synced — reload to see the latest data.':st.offline?('⚠️ Offline — sales are being saved on this device'+(st.pending?' ('+st.pending+' waiting to sync)':'')+' and will sync automatically. Don\'t clear this browser\'s data.'):('⏳ Syncing '+st.pending+' sale'+(st.pending===1?'':'s')+' saved on this device…');
+  return React.createElement('div',{style:{position:'fixed',top:0,left:0,right:0,zIndex:2000,background:bg,color:'#fff',fontSize:13,fontWeight:700,padding:'8px 14px',display:'flex',alignItems:'center',justifyContent:'center',gap:12,boxShadow:'0 2px 8px rgba(0,0,0,.2)'}},msg,back&&React.createElement('button',{onClick:()=>window.location.reload(),style:{background:'#fff',color:bg,border:'none',borderRadius:6,padding:'4px 10px',fontWeight:800,cursor:'pointer'}},'Reload'));
 }
 async function launchSq(payload,settings){
   const pid=uid();
@@ -2015,7 +2042,7 @@ function App(){
   const completeSale=useCallback((saleData)=>{
     const cartItems=saleData.items||cart;
     const now=new Date();const saleTime=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-    setSales(prev=>[...prev,{id:uid(),date:today(),saleTime,items:cartItems,subtotal:saleData.subtotal,taxAmt:saleData.taxAmt,discount:saleData.couponDisc||0,total:saleData.total,payMethod:saleData.method,notes:saleData.notes||'',squareTxId:saleData.squareTxId||null,eventId:saleData.eventId||null,eventName:saleData.eventName||null,eventLocation:saleData.eventLocation||null,locIdx:saleData.locIdx!=null?saleData.locIdx:null,taxLocation:saleData.taxLocation||null}]);
+    const newSale={id:uid(),date:today(),saleTime,items:cartItems,subtotal:saleData.subtotal,taxAmt:saleData.taxAmt,discount:saleData.couponDisc||0,total:saleData.total,payMethod:saleData.method,notes:saleData.notes||'',squareTxId:saleData.squareTxId||null,eventId:saleData.eventId||null,eventName:saleData.eventName||null,eventLocation:saleData.eventLocation||null,locIdx:saleData.locIdx!=null?saleData.locIdx:null,taxLocation:saleData.taxLocation||null};setSales(prev=>[...prev,newSale]);queueSale(newSale);
     setProducts(prev=>prev.map(p=>{const ci=cartItems.find(i=>i.id===p.id);return ci?{...p,stock:Math.max(0,p.stock-ci.qty)}:p;}));
     // FIFO lot consumption for profit sharing tracking
     setInventoryLots(prev=>{
@@ -2054,6 +2081,7 @@ function App(){
       React.createElement('div',{style:{flex:1,overflow:'auto'}},renderPage())),
     mobile&&React.createElement(BottomNav,{page,setPage,cartCount,sqOk}),
     checkout&&cart.length>0&&React.createElement(CheckoutModal,{cart,settings,coupons,giftCards,events:settings.events||[],dayEvent:(()=>{const t=today();const last=[...sales].reverse().find(x=>x.date===t&&!x.isRefund&&(x.eventId||x.locIdx!=null));return last?{eventId:last.eventId||'',locIdx:last.locIdx||0}:null;})(),onAddEvent:e=>setSettings(p=>({...p,events:[...(p.events||[]).filter(x=>x.id!==e.id),e]})),onComplete:d=>{completeSale({...d,items:cart});setCart([]);setCheckout(false);},onClose:()=>setCheckout(false)}),
+    React.createElement(NetBanner),
     toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}),
     pendingSq&&React.createElement(SquareConfirmModal,{pendingSq,onConfirm:async()=>{const{pendingId,sale}=pendingSq;completeSale({...sale,method:'Card (Square)'});await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);showToast('Square payment recorded!');},onCancel:async()=>{const{pendingId}=pendingSq;await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);}}));
 }
