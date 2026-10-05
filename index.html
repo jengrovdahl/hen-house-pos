@@ -277,7 +277,9 @@ const MN_LOCATIONS=[
   {name:'Other MN (State only)',rate:0.06875},
 ];
 
-// ── EVENTS ── stored in settings.events: [{id,name,location,locIdx,date}]
+// ── EVENTS ── stored in settings.events: [{id,name,location,locIdx,date,startTime,endTime}]
+const fmtT=v=>{if(!v)return '';const [h,m]=String(v).split(':');const H=+h;if(isNaN(H))return v;return ((H%12)||12)+':'+(m||'00')+(H<12?' AM':' PM');};
+const evHours=e=>e.startTime||e.endTime?(fmtT(e.startTime)||'?')+' – '+(fmtT(e.endTime)||'?'):'Times not set';
 function EventFormModal({ev,onSave,onClose}){
   const [f,setF]=useState(ev||{name:'',location:'',locIdx:0,date:today()});
   const sv=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -287,6 +289,9 @@ function EventFormModal({ev,onSave,onClose}){
     React.createElement(Fld,{label:'Location'},React.createElement(Inp,{value:f.location||'',onChange:v=>sv('location',v),placeholder:'e.g. Main St Park, Blooming Prairie'})),
     React.createElement(Fld,{label:'Sales Tax Location'},React.createElement(Sel,{value:f.locIdx||0,onChange:v=>sv('locIdx',+v),options:MN_LOCATIONS.map((l,i)=>({value:i,label:l.name+' ('+(l.rate*100).toFixed(3)+'%)'}))})),
     React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:f.date||'',onChange:v=>sv('date',v),type:'date'})),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+      React.createElement(Fld,{label:'Start Time'},React.createElement(Inp,{value:f.startTime||'',onChange:v=>sv('startTime',v),type:'time'})),
+      React.createElement(Fld,{label:'End Time'},React.createElement(Inp,{value:f.endTime||'',onChange:v=>sv('endTime',v),type:'time'}))),
     React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
       React.createElement(Btn,{onClick:onClose,color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
       React.createElement(Btn,{onClick:()=>{if(!ok)return;onSave({...f,id:f.id||uid(),name:f.name.trim(),location:(f.location||'').trim(),locIdx:+f.locIdx||0});},disabled:!ok,style:{flex:2,justifyContent:'center'},ch:ev&&ev.id?'Save Event':'Add Event'})));
@@ -304,25 +309,39 @@ function EventsPage({settings,setSettings,sales,showToast}){
   const save=e=>{setSettings(p=>({...p,events:[...(p.events||[]).filter(x=>x.id!==e.id),e]}));setEditing(null);showToast('Event saved');};
   const del=e=>{if(!confirm('Delete event "'+e.name+'"? Past sales keep their event name.'))return;setSettings(p=>({...p,events:(p.events||[]).filter(x=>x.id!==e.id)}));showToast('Event deleted');};
   const stats=id=>{const ss=sales.filter(s=>s.eventId===id&&!s.isRefund&&!s.refunded);return{n:ss.length,rev:ss.reduce((a,x)=>a+(x.total||0),0)};};
-  const sorted=[...events].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const t=today();
+  // Upcoming = today or later (or no date), soonest first. Past = before today, most recent first.
+  const upcoming=events.filter(e=>!e.date||e.date>=t).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  const past=events.filter(e=>e.date&&e.date<t).sort((a,b)=>b.date.localeCompare(a.date));
+  const card=(e,isPast)=>{const st=stats(e.id);const isToday=e.date===t;return React.createElement('div',{key:e.id,style:{background:SURF,border:`1px solid ${isToday?G:BOR}`,borderRadius:12,padding:14,opacity:isPast?.85:1}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',gap:8}},
+      React.createElement('div',{style:{fontSize:15,fontWeight:800,color:TX}},'📅 '+e.name,isToday&&React.createElement('span',{style:{marginLeft:8,fontSize:11,fontWeight:800,color:'#fff',background:G,borderRadius:10,padding:'2px 8px',verticalAlign:'middle'}},'TODAY')),
+      React.createElement('div',{style:{whiteSpace:'nowrap'}},
+        React.createElement('button',{onClick:()=>setEditing(e),title:'Edit',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'✏️'),
+        React.createElement('button',{onClick:()=>del(e),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'🗑️'))),
+    React.createElement('div',{style:{fontSize:13,color:MUT,marginTop:4}},(e.location||'No location set')+' · '+(e.date?fDate(e.date):'No date')),
+    React.createElement('div',{style:{fontSize:13,color:e.startTime||e.endTime?TX:MUT,marginTop:2}},'🕘 '+evHours(e)),
+    React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:2}},'Tax: '+(MN_LOCATIONS[e.locIdx||0]||MN_LOCATIONS[0]).name),
+    (isPast||st.n>0)&&React.createElement('div',{style:{display:'flex',gap:14,marginTop:10,fontSize:13}},
+      React.createElement('span',{style:{color:G,fontWeight:800}},f$(st.rev)),
+      React.createElement('span',{style:{color:MUT}},st.n+' sale'+(st.n===1?'':'s'))));};
+  const grid=list=>React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}},list);
+  const section=(title,count,extra)=>React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,margin:'22px 0 12px'}},
+    React.createElement('h3',{style:{fontSize:16,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif",whiteSpace:'nowrap'}},title+' ('+count+')'),
+    React.createElement('div',{style:{flex:1,height:1,background:BOR}}),
+    extra?React.createElement('span',{style:{fontSize:13,color:MUT,whiteSpace:'nowrap'}},extra):null);
+  const pastTotal=past.reduce((a,e)=>a+stats(e.id).rev,0);
   return React.createElement('div',{style:{padding:16,maxWidth:900}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Events'),
       React.createElement(Btn,{onClick:()=>setEditing({}),ch:'+ Add Event'})),
-    React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:14}},'Pick an event at checkout once — the rest of that day\'s sales automatically use the same event and tax location.'),
-    sorted.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:60,fontSize:15}},'No events yet — add your first one.'):
-    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}},
-      sorted.map(e=>{const st=stats(e.id);return React.createElement('div',{key:e.id,style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:14}},
-        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',gap:8}},
-          React.createElement('div',{style:{fontSize:15,fontWeight:800,color:TX}},'📅 '+e.name),
-          React.createElement('div',{style:{whiteSpace:'nowrap'}},
-            React.createElement('button',{onClick:()=>setEditing(e),title:'Edit',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'✏️'),
-            React.createElement('button',{onClick:()=>del(e),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'🗑️'))),
-        React.createElement('div',{style:{fontSize:13,color:MUT,marginTop:4}},(e.location||'No location set')+' · '+(e.date?fDate(e.date):'No date')),
-        React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:2}},'Tax: '+(MN_LOCATIONS[e.locIdx||0]||MN_LOCATIONS[0]).name),
-        React.createElement('div',{style:{display:'flex',gap:14,marginTop:10,fontSize:13}},
-          React.createElement('span',{style:{color:G,fontWeight:800}},f$(st.rev)),
-          React.createElement('span',{style:{color:MUT}},st.n+' sale'+(st.n===1?'':'s'))));})),
+    React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:4}},'Pick an event at checkout once — the rest of that day\'s sales automatically use the same event and tax location.'),
+    events.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:60,fontSize:15}},'No events yet — add your first one.'):
+    React.createElement('div',null,
+      section('Upcoming Events',upcoming.length),
+      upcoming.length?grid(upcoming.map(e=>card(e,false))):React.createElement('div',{style:{color:MUT,fontSize:14,padding:'8px 2px'}},'Nothing scheduled — tap + Add Event.'),
+      section('Past Events',past.length,past.length?f$(pastTotal)+' total':null),
+      past.length?grid(past.map(e=>card(e,true))):React.createElement('div',{style:{color:MUT,fontSize:14,padding:'8px 2px'}},'No past events yet.')),
     editing&&React.createElement(EventFormModal,{ev:editing.id?editing:null,onSave:save,onClose:()=>setEditing(null)}));
 }
 function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose,events=[],dayEvent=null,onAddEvent=()=>{}}){
