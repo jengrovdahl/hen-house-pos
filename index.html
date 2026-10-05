@@ -147,7 +147,7 @@ function POSPage({products,cart,setCart,onCheckout,isMobile}){
   const [customDisc,setCustomDisc]=useState('');
   const [showCustomDisc,setShowCustomDisc]=useState(false);
   const [cat,setCat]=useState(()=>localStorage.getItem('hhc_pos_cat')||'All');const [showCart,setShowCart]=useState(false);
-  const usedCats=['All',...PROD_CATS.filter(c=>products.some(p=>p.cat===c&&p.active))];
+  const usedCats=['All',...(settings?.customCats||PROD_CATS).filter(c=>products.some(p=>p.cat===c&&p.active))];
   const [sortBy,setSortBy]=useState('alpha');
   const SORT_OPTS=[{v:'alpha',l:'A–Z'},{v:'zalpha',l:'Z–A'},{v:'priceasc',l:'Price ↑'},{v:'pricedesc',l:'Price ↓'}];
   const filtered=products.filter(p=>p.active&&(cat==='All'||p.cat===cat)).sort((a,b)=>{
@@ -301,7 +301,7 @@ function ProductModal({prod,onSave,onClose}){
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
       React.createElement('div',{style:{gridColumn:'span 2'}},React.createElement(Fld,{label:'Name'},React.createElement(Inp,{value:f.name,onChange:v=>sv('name',v),placeholder:'e.g. Air Bites'}))),
       React.createElement(Fld,{label:'Emoji'},React.createElement(Inp,{value:f.emoji,onChange:v=>sv('emoji',v),placeholder:'🍬'})),
-      React.createElement(Fld,{label:'Category'},React.createElement(Sel,{value:f.cat,onChange:v=>sv('cat',v),options:PROD_CATS})),
+      React.createElement(Fld,{label:'Category'},React.createElement(Sel,{value:f.cat,onChange:v=>sv('cat',v),options:settings?.customCats||PROD_CATS})),
       React.createElement(Fld,{label:'Regular Price ($)'},React.createElement(Inp,{value:f.price,onChange:v=>sv('price',v),type:'number',placeholder:'0.00'})),
       React.createElement(Fld,{label:'Your Cost ($)'},React.createElement(Inp,{value:f.cost,onChange:v=>sv('cost',v),type:'number',placeholder:'0.00'})),
       React.createElement(Fld,{label:'Stock Qty'},React.createElement(Inp,{value:f.stock,onChange:v=>sv('stock',v),type:'number',placeholder:'0'})),
@@ -325,7 +325,7 @@ function ProductModal({prod,onSave,onClose}){
 function ProductsPage({products,setProducts,showToast}){
   const [editing,setEditing]=useState(null);const [cf,setCf]=useState('All');
   const [search,setSearch]=useState('');const [sort,setSort]=useState('az');
-  const cats=['All',...PROD_CATS];
+  const cats=['All',...(settings?.customCats||PROD_CATS)];
   const filtered=products
     .filter(p=>(cf==='All'||p.cat===cf)&&(!search||p.name.toLowerCase().includes(search.toLowerCase())))
     .sort((a,b)=>sort==='az'?a.name.localeCompare(b.name):sort==='za'?b.name.localeCompare(a.name):sort==='lo'?effPrice(a)-effPrice(b):effPrice(b)-effPrice(a));
@@ -335,7 +335,7 @@ function ProductsPage({products,setProducts,showToast}){
   return React.createElement('div',{style:{padding:16,maxWidth:920}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},
       React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Product Catalog'),
-      React.createElement(Btn,{onClick:()=>setEditing({name:'',cat:PROD_CATS[0],price:'',cost:'',taxable:false,stock:'',emoji:'🛍️',salePrice:'',saleStart:'',saleEnd:''}),ch:'+ Add Product'})),
+      React.createElement(Btn,{onClick:()=>setEditing({name:'',cat:(settings?.customCats||PROD_CATS)[0],price:'',cost:'',taxable:false,stock:'',emoji:'🛍️',salePrice:'',saleStart:'',saleEnd:''}),ch:'+ Add Product'})),
     React.createElement('div',{style:{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
       React.createElement(Inp,{value:search,onChange:setSearch,placeholder:'Search products...',style:{maxWidth:220}}),
       React.createElement(Sel,{value:sort,onChange:setSort,options:[{value:'az',label:'A to Z'},{value:'za',label:'Z to A'},{value:'lo',label:'Price: Low to High'},{value:'hi',label:'Price: High to Low'}]})),
