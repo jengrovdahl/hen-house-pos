@@ -132,7 +132,7 @@ function applyCoupon(coupons,code,sub){
   return{ok:true,coupon:c,disc,msg:(c.type==='pct'?c.value+'%':'$'+c.value)+' off applied!'};
 }
 const Inp=({value,onChange,type='text',placeholder,style={},readOnly=false})=>React.createElement('input',{type,value,onChange:e=>onChange&&onChange(e.target.value),placeholder,readOnly,style:{border:`1px solid ${readOnly?'transparent':BOR}`,borderRadius:8,padding:'8px 12px',fontSize:14,width:'100%',background:readOnly?SALT:SURF,color:TX,outline:'none',...style}});
-const Sel=({value,onChange,options})=>React.createElement('select',{value,onChange:e=>onChange(e.target.value),style:{border:`1px solid ${BOR}`,borderRadius:8,padding:'8px 12px',fontSize:14,width:'100%',background:SURF,color:TX,outline:'none'}},options.map(o=>React.createElement('option',{key:o.value||o,value:o.value||o},o.label||o)));
+const Sel=({value,onChange,options})=>React.createElement('select',{value,onChange:e=>onChange(e.target.value),style:{border:`1px solid ${BOR}`,borderRadius:8,padding:'8px 12px',fontSize:14,width:'100%',background:SURF,color:TX,outline:'none'}},options.map(o=>{const isObj=o&&typeof o==='object';const v=isObj?o.value:o;return React.createElement('option',{key:String(v),value:v},isObj?o.label:o);}));
 const Lbl=({t})=>React.createElement('label',{style:{display:'block',fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:4}},t);
 const Fld=({label,children})=>React.createElement('div',{style:{marginBottom:12}},React.createElement(Lbl,{t:label}),children);
 const Btn=({onClick,ch,color=G,size='md',outline=false,style={},disabled=false})=>{const p=size==='lg'?'14px 24px':size==='sm'?'6px 12px':'10px 18px',fs=size==='lg'?16:size==='sm'?13:14;return React.createElement('button',{onClick:disabled?undefined:onClick,disabled,style:{background:outline?'transparent':disabled?BOR:color,color:outline?color:'#fff',border:outline?`1.5px solid ${color}`:'none',borderRadius:8,padding:p,fontSize:fs,fontWeight:700,cursor:disabled?'not-allowed':'pointer',display:'inline-flex',alignItems:'center',gap:6,opacity:disabled?.6:1,...style}},ch);};
@@ -249,12 +249,65 @@ const MN_LOCATIONS=[
   {name:'St. Paul (Ramsey Co.)',rate:0.08125},
   {name:'Other MN (State only)',rate:0.06875},
 ];
-function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
+
+// ── EVENTS ── stored in settings.events: [{id,name,location,locIdx,date}]
+function EventFormModal({ev,onSave,onClose}){
+  const [f,setF]=useState(ev||{name:'',location:'',locIdx:0,date:today()});
+  const sv=(k,v)=>setF(p=>({...p,[k]:v}));
+  const ok=!!(f.name||'').trim();
+  return React.createElement(Modal,{title:ev&&ev.id?'Edit Event':'Add New Event',onClose,width:420},
+    React.createElement(Fld,{label:'Event Name'},React.createElement(Inp,{value:f.name,onChange:v=>sv('name',v),placeholder:'e.g. Blooming Prairie Farmers Market'})),
+    React.createElement(Fld,{label:'Location'},React.createElement(Inp,{value:f.location||'',onChange:v=>sv('location',v),placeholder:'e.g. Main St Park, Blooming Prairie'})),
+    React.createElement(Fld,{label:'Sales Tax Location'},React.createElement(Sel,{value:f.locIdx||0,onChange:v=>sv('locIdx',+v),options:MN_LOCATIONS.map((l,i)=>({value:i,label:l.name+' ('+(l.rate*100).toFixed(3)+'%)'}))})),
+    React.createElement(Fld,{label:'Date'},React.createElement(Inp,{value:f.date||'',onChange:v=>sv('date',v),type:'date'})),
+    React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
+      React.createElement(Btn,{onClick:onClose,color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
+      React.createElement(Btn,{onClick:()=>{if(!ok)return;onSave({...f,id:f.id||uid(),name:f.name.trim(),location:(f.location||'').trim(),locIdx:+f.locIdx||0});},disabled:!ok,style:{flex:2,justifyContent:'center'},ch:ev&&ev.id?'Save Event':'Add Event'})));
+}
+function EventPicker({events,value,onChange,onAdd}){
+  const [adding,setAdding]=useState(false);
+  const sorted=[...(events||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return React.createElement('div',null,
+    React.createElement(Fld,{label:'Event'},React.createElement(Sel,{value:value||'',onChange:v=>{if(v==='__new__')setAdding(true);else onChange(v);},options:[{value:'',label:'No event'},...sorted.map(e=>({value:e.id,label:e.name+(e.date?' · '+fDate(e.date):'')})),{value:'__new__',label:'+ Add New Event…'}]})),
+    adding&&React.createElement(EventFormModal,{onClose:()=>setAdding(false),onSave:e=>{onAdd(e);onChange(e.id,e);setAdding(false);}}));
+}
+function EventsPage({settings,setSettings,sales,showToast}){
+  const events=settings.events||[];
+  const [editing,setEditing]=useState(null);
+  const save=e=>{setSettings(p=>({...p,events:[...(p.events||[]).filter(x=>x.id!==e.id),e]}));setEditing(null);showToast('Event saved');};
+  const del=e=>{if(!confirm('Delete event "'+e.name+'"? Past sales keep their event name.'))return;setSettings(p=>({...p,events:(p.events||[]).filter(x=>x.id!==e.id)}));showToast('Event deleted');};
+  const stats=id=>{const ss=sales.filter(s=>s.eventId===id&&!s.isRefund&&!s.refunded);return{n:ss.length,rev:ss.reduce((a,x)=>a+(x.total||0),0)};};
+  const sorted=[...events].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return React.createElement('div',{style:{padding:16,maxWidth:900}},
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,flexWrap:'wrap',gap:8}},
+      React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Events'),
+      React.createElement(Btn,{onClick:()=>setEditing({}),ch:'+ Add Event'})),
+    React.createElement('div',{style:{fontSize:13,color:MUT,marginBottom:14}},'Pick an event at checkout once — the rest of that day\'s sales automatically use the same event and tax location.'),
+    sorted.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:60,fontSize:15}},'No events yet — add your first one.'):
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}},
+      sorted.map(e=>{const st=stats(e.id);return React.createElement('div',{key:e.id,style:{background:SURF,border:`1px solid ${BOR}`,borderRadius:12,padding:14}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',gap:8}},
+          React.createElement('div',{style:{fontSize:15,fontWeight:800,color:TX}},'📅 '+e.name),
+          React.createElement('div',{style:{whiteSpace:'nowrap'}},
+            React.createElement('button',{onClick:()=>setEditing(e),title:'Edit',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'✏️'),
+            React.createElement('button',{onClick:()=>del(e),title:'Delete',style:{background:'none',border:'none',cursor:'pointer',fontSize:15}},'🗑️'))),
+        React.createElement('div',{style:{fontSize:13,color:MUT,marginTop:4}},(e.location||'No location set')+' · '+(e.date?fDate(e.date):'No date')),
+        React.createElement('div',{style:{fontSize:12,color:MUT,marginTop:2}},'Tax: '+(MN_LOCATIONS[e.locIdx||0]||MN_LOCATIONS[0]).name),
+        React.createElement('div',{style:{display:'flex',gap:14,marginTop:10,fontSize:13}},
+          React.createElement('span',{style:{color:G,fontWeight:800}},f$(st.rev)),
+          React.createElement('span',{style:{color:MUT}},st.n+' sale'+(st.n===1?'':'s'))));})),
+    editing&&React.createElement(EventFormModal,{ev:editing.id?editing:null,onSave:save,onClose:()=>setEditing(null)}));
+}
+function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose,events=[],dayEvent=null,onAddEvent=()=>{}}){
   const [method,setMethod]=useState('Cash');const [cash,setCash]=useState('');const [notes,setNotes]=useState('');
   const [code,setCode]=useState('');const [cr,setCr]=useState(null);const [gcName,setGcName]=useState('');
   const [taxOn,setTaxOn]=useState(true);const [launching,setLaunching]=useState(false);
-  const [locIdx,setLocIdx]=useState(0);
-  const taxRate=MN_LOCATIONS[locIdx].rate;
+  const [locIdx,setLocIdx]=useState(dayEvent?(dayEvent.locIdx||0):0);
+  const [eventId,setEventId]=useState(dayEvent?(dayEvent.eventId||''):'');
+  const taxRate=(MN_LOCATIONS[locIdx]||MN_LOCATIONS[0]).rate;
+  const pickEvent=(id,evObj)=>{setEventId(id);const e=evObj||events.find(x=>x.id===id);if(e)setLocIdx(e.locIdx||0);};
+  const curEv=events.find(x=>x.id===eventId);
+  const evFields={eventId:curEv?curEv.id:null,eventName:curEv?curEv.name:null,eventLocation:curEv?(curEv.location||null):null,locIdx,taxLocation:(MN_LOCATIONS[locIdx]||MN_LOCATIONS[0]).name};
   const sub=cart.reduce((s,i)=>s+i.ep*i.qty,0);
   const hasTaxItems=cart.some(i=>i.taxable);
   const taxAmt=taxOn&&hasTaxItems?cart.reduce((s,i)=>s+(i.taxable?+(i.ep*i.qty-(i.ep*i.qty/(1+taxRate))).toFixed(2):0),0):0;
@@ -263,8 +316,8 @@ function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
   const sqOk=!!settings.squareAppId;
   const gcMatch=giftCards.find(g=>g.name.toLowerCase()===gcName.toLowerCase()&&g.balance>0);
   const doComplete=async()=>{
-    if(method==='Card (Square)'){if(!sqOk){alert('Add Square Application ID in Settings.');return;}setLaunching(true);await launchSq({items:cart,method,notes,couponDisc:cd,total,subtotal:sub,taxAmt,couponId:cr?.coupon?.id},settings);return;}
-    onComplete({method,notes,couponDisc:cd,total,subtotal:sub,taxAmt,couponId:cr?.coupon?.id,gcName:method==='Gift Card/Voucher'?gcName:null});
+    if(method==='Card (Square)'){if(!sqOk){alert('Add Square Application ID in Settings.');return;}setLaunching(true);await launchSq({items:cart,method,notes,couponDisc:cd,total,subtotal:sub,taxAmt,couponId:cr?.coupon?.id,...evFields},settings);return;}
+    onComplete({method,notes,couponDisc:cd,total,subtotal:sub,taxAmt,couponId:cr?.coupon?.id,gcName:method==='Gift Card/Voucher'?gcName:null,...evFields});
   };
   return React.createElement(Modal,{title:'Checkout',onClose,width:460},
     React.createElement('div',{style:{background:SALT,borderRadius:10,padding:14,marginBottom:14}},
@@ -279,6 +332,8 @@ function CheckoutModal({cart,settings,coupons,giftCards,onComplete,onClose}){
       React.createElement('div',{style:{flex:1}},React.createElement(Inp,{value:code,onChange:setCode,placeholder:'Coupon code...'})),
       React.createElement(Btn,{onClick:()=>setCr(applyCoupon(coupons,code,sub)),ch:'Apply',size:'sm',color:PUR})),
     cr&&React.createElement('div',{style:{fontSize:13,fontWeight:700,color:cr.ok?G:RED,marginBottom:10,padding:'6px 10px',background:cr.ok?GLT:REDLT,borderRadius:8}},cr.msg),
+    dayEvent&&dayEvent.eventId&&curEv&&eventId===dayEvent.eventId&&React.createElement('div',{style:{fontSize:12,fontWeight:700,color:G,background:GLT,borderRadius:8,padding:'6px 10px',marginBottom:8}},'📅 Using today\'s event: '+curEv.name+(curEv.location?' — '+curEv.location:'')),
+    React.createElement(EventPicker,{events,value:eventId,onChange:pickEvent,onAdd:onAddEvent}),
     React.createElement(Fld,{label:'Market Location'},React.createElement(Sel,{value:locIdx,onChange:v=>setLocIdx(+v),options:MN_LOCATIONS.map((l,i)=>({value:i,label:l.name+' ('+(l.rate*100).toFixed(3)+'%)'}))})),
     React.createElement(Fld,{label:'Payment Method'},React.createElement(Sel,{value:method,onChange:setMethod,options:PAY_METHODS})),
     method==='Cash'&&React.createElement('div',null,
@@ -366,7 +421,8 @@ function RefundModal({sale,onRefund,onClose}){
       React.createElement(Btn,{onClick:()=>onRefund(sale,partial,amt),color:RED,size:'lg',style:{flex:2,justifyContent:'center'},ch:'↩ Issue Refund'})));
 }
 
-function SalesPage({sales,setSales,showToast}){
+function SalesPage({sales,setSales,showToast,settings}){
+  const events=(settings&&settings.events)||[];const [evF,setEvF]=useState('');
   const [df,setDf]=useState(today());const [dt,setDt]=useState(today());const [refunding,setRefunding]=useState(null);
   const [editingSale,setEditingSale]=useState(null);
   const [editF,setEditF]=useState({});
@@ -374,18 +430,18 @@ function SalesPage({sales,setSales,showToast}){
   const toggleSel=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   const toggleAll=()=>setSelected(prev=>prev.size===filt.length?new Set():new Set(filt.map(s=>s.id)));
   const deleteSelected=()=>{if(!confirm('Delete '+selected.size+' selected transactions? This cannot be undone.'))return;setSales(prev=>prev.filter(s=>!selected.has(s.id)));setSelected(new Set());showToast(selected.size+' transactions deleted');};
-  const filt=sales.filter(s=>(!df||s.date>=df)&&(!dt||s.date<=dt)&&!s.isRefund&&!s.refunded);
+  const filt=sales.filter(s=>(!df||s.date>=df)&&(!dt||s.date<=dt)&&!s.isRefund&&!s.refunded&&(!evF||(evF==='__none__'?!s.eventId:s.eventId===evF)));
   const refunds=sales.filter(s=>s.isRefund);
   const rev=filt.reduce((s,x)=>s+x.total,0);const tax=filt.reduce((s,x)=>s+(x.taxAmt||0),0);const avg=filt.length?rev/filt.length:0;
   const doRefund=(sale,partial,amt)=>{setSales(prev=>[...prev.map(s=>s.id===sale.id?{...s,refunded:true}:s),{id:uid(),date:today(),items:sale.items,subtotal:0,taxAmt:0,discount:0,total:partial?+amt:sale.total,payMethod:'Refund',notes:'Refund · '+sale.id.slice(0,6),isRefund:true}]);showToast('Refund recorded');setRefunding(null);};
-  const exportCSV=()=>{const h=['Date','Items','Subtotal','Tax','Discount','Total','Payment','Notes'];const rows=[...sales].reverse().map(s=>[s.date,s.items?.map(i=>i.name+'x'+i.qty).join('; ')||'',(s.subtotal||0).toFixed(2),(s.taxAmt||0).toFixed(2),(s.discount||0).toFixed(2),s.total.toFixed(2),s.payMethod,s.notes||'']);const csv=[h,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='hhc-sales.csv';a.click();};
+  const exportCSV=()=>{const h=['Date','Event','Event Location','Tax Location','Items','Subtotal','Tax','Discount','Total','Payment','Notes'];const rows=[...sales].reverse().map(s=>[s.date,s.eventName||'',s.eventLocation||'',s.taxLocation||'',s.items?.map(i=>i.name+'x'+i.qty).join('; ')||'',(s.subtotal||0).toFixed(2),(s.taxAmt||0).toFixed(2),(s.discount||0).toFixed(2),s.total.toFixed(2),s.payMethod,s.notes||'']);const csv=[h,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='hhc-sales.csv';a.click();};
   return React.createElement('div',{style:{padding:16,maxWidth:1000}},
     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}},React.createElement('h2',{style:{fontSize:20,fontWeight:800,color:TX,fontFamily:"'Libre Baskerville',serif"}},'Sales History'),React.createElement(Btn,{onClick:exportCSV,color:MUT,outline:true,size:'sm',ch:'⬇ Export CSV'})),
     React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:18}},[{l:'Revenue',v:f$(rev),c:G,bg:GLT},{l:'Tax Collected',v:f$(tax),c:A,bg:ALT},{l:'Transactions',v:filt.length,c:TX,bg:SALT},{l:'Avg Sale',v:f$(avg),c:TX,bg:SALT}].map(s=>React.createElement('div',{key:s.l,style:{background:s.bg,border:`1px solid ${BOR}`,borderRadius:10,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:11,fontWeight:700,color:MUT,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}},s.l),React.createElement('div',{style:{fontSize:20,fontWeight:800,color:s.c}},s.v)))),
-    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}},React.createElement(Fld,{label:'From'},React.createElement(Inp,{value:df,onChange:setDf,type:'date',style:{width:160}})),React.createElement(Fld,{label:'To'},React.createElement(Inp,{value:dt,onChange:setDt,type:'date',style:{width:160}})),React.createElement(Btn,{onClick:()=>{setDf('');setDt('');},color:MUT,outline:true,size:'sm',ch:'Clear'})),
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'flex-end'}},React.createElement(Fld,{label:'From'},React.createElement(Inp,{value:df,onChange:setDf,type:'date',style:{width:160}})),React.createElement(Fld,{label:'To'},React.createElement(Inp,{value:dt,onChange:setDt,type:'date',style:{width:160}})),React.createElement(Fld,{label:'Event'},React.createElement(Sel,{value:evF,onChange:setEvF,options:[{value:'',label:'All events'},{value:'__none__',label:'No event'},...[...events].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>({value:e.id,label:e.name}))]})),React.createElement(Btn,{onClick:()=>{setDf('');setDt('');setEvF('');},color:MUT,outline:true,size:'sm',ch:'Clear'})),
     filt.length===0?React.createElement('div',{style:{textAlign:'center',color:MUT,padding:60,fontSize:15}},'No sales yet!'):
     selected.size>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:REDLT,border:`1px solid ${RED}`,borderRadius:10,marginBottom:10}},React.createElement('span',{style:{fontSize:13,fontWeight:700,color:RED}},selected.size+' selected'),React.createElement(Btn,{onClick:deleteSelected,color:RED,size:'sm',ch:'🗑️ Delete Selected'}),React.createElement('button',{onClick:()=>setSelected(new Set()),style:{background:'none',border:'none',cursor:'pointer',color:MUT,fontSize:13}},'Clear')),
-    React.createElement('div',{style:{overflowX:'auto',maxHeight:'calc(100vh - 320px)',overflow:'auto'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},[React.createElement('th',{key:'sel',className:'sticky-th',style:{padding:'10px 12px',borderBottom:`1px solid ${BOR}`,width:32}},React.createElement('input',{type:'checkbox',checked:filt.length>0&&selected.size===filt.length,onChange:toggleAll,style:{width:15,height:15}})),...['Date','Items','Sub','Tax','Total','Payment','Notes',''].map(h=>React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h))])),React.createElement('tbody',null,[...filt].reverse().map(s=>React.createElement('tr',{key:s.id,style:{borderBottom:`1px solid ${BOR}`,background:selected.has(s.id)?GLT:'transparent'}},React.createElement('td',{style:{padding:'10px 12px'}},React.createElement('input',{type:'checkbox',checked:selected.has(s.id),onChange:()=>toggleSel(s.id),style:{width:15,height:15}})),React.createElement('td',{style:{padding:'10px 12px',color:MUT,whiteSpace:'nowrap'}},React.createElement('div',null,fDate(s.date)),s.saleTime&&React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:1}},s.saleTime)),React.createElement('td',{style:{padding:'10px 12px',color:TX}},s.items?.map(i=>i.emoji+i.name+'×'+i.qty).join(', ')),React.createElement('td',{style:{padding:'10px 12px'}},f$(s.subtotal||0)),React.createElement('td',{style:{padding:'10px 12px',color:A}},f$(s.taxAmt||0)),React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:G}},f$(s.total)),React.createElement('td',{style:{padding:'10px 12px',color:MUT}},s.payMethod),React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},s.notes||''),React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},React.createElement('button',{onClick:()=>setRefunding(s),title:'Issue refund',style:{background:'none',border:`1px solid ${RED}`,borderRadius:6,cursor:'pointer',color:RED,padding:'3px 8px',fontSize:13,fontWeight:700}},'↩ Refund'),React.createElement('button',{onClick:()=>{setEditF({...s,total:String(s.total),subtotal:String(s.subtotal||s.total),taxAmt:String(s.taxAmt||0),notes:s.notes||''});setEditingSale(s.id);},title:'Edit',style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:'4px',fontSize:16,marginLeft:4}},'✏️'),React.createElement('button',{onClick:()=>{if(confirm('Delete this transaction? This cannot be undone.'))setSales(prev=>prev.filter(x=>x.id!==s.id));},title:'Delete transaction',style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:'4px',fontSize:16,marginLeft:4}},'🗑️'))))))),
+    React.createElement('div',{style:{overflowX:'auto',maxHeight:'calc(100vh - 320px)',overflow:'auto'}},React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:13}},React.createElement('thead',null,React.createElement('tr',{style:{background:SALT}},[React.createElement('th',{key:'sel',className:'sticky-th',style:{padding:'10px 12px',borderBottom:`1px solid ${BOR}`,width:32}},React.createElement('input',{type:'checkbox',checked:filt.length>0&&selected.size===filt.length,onChange:toggleAll,style:{width:15,height:15}})),...['Date','Event','Items','Sub','Tax','Total','Payment','Notes',''].map(h=>React.createElement('th',{key:h,className:'sticky-th',style:{padding:'10px 12px',textAlign:'left',fontWeight:700,color:MUT,borderBottom:`1px solid ${BOR}`,whiteSpace:'nowrap'}},h))])),React.createElement('tbody',null,[...filt].reverse().map(s=>React.createElement('tr',{key:s.id,style:{borderBottom:`1px solid ${BOR}`,background:selected.has(s.id)?GLT:'transparent'}},React.createElement('td',{style:{padding:'10px 12px'}},React.createElement('input',{type:'checkbox',checked:selected.has(s.id),onChange:()=>toggleSel(s.id),style:{width:15,height:15}})),React.createElement('td',{style:{padding:'10px 12px',color:MUT,whiteSpace:'nowrap'}},React.createElement('div',null,fDate(s.date)),s.saleTime&&React.createElement('div',{style:{fontSize:11,color:MUT,marginTop:1}},s.saleTime)),React.createElement('td',{style:{padding:'10px 12px',color:TX,maxWidth:160}},s.eventName?React.createElement('div',null,React.createElement('div',{style:{fontWeight:700}},s.eventName),s.eventLocation&&React.createElement('div',{style:{fontSize:11,color:MUT}},s.eventLocation)):React.createElement('span',{style:{color:MUT}},'—')),React.createElement('td',{style:{padding:'10px 12px',color:TX}},s.items?.map(i=>i.emoji+i.name+'×'+i.qty).join(', ')),React.createElement('td',{style:{padding:'10px 12px'}},f$(s.subtotal||0)),React.createElement('td',{style:{padding:'10px 12px',color:A}},f$(s.taxAmt||0)),React.createElement('td',{style:{padding:'10px 12px',fontWeight:800,color:G}},f$(s.total)),React.createElement('td',{style:{padding:'10px 12px',color:MUT}},s.payMethod),React.createElement('td',{style:{padding:'10px 12px',color:MUT,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},s.notes||''),React.createElement('td',{style:{padding:'10px 12px',whiteSpace:'nowrap'}},React.createElement('button',{onClick:()=>setRefunding(s),title:'Issue refund',style:{background:'none',border:`1px solid ${RED}`,borderRadius:6,cursor:'pointer',color:RED,padding:'3px 8px',fontSize:13,fontWeight:700}},'↩ Refund'),React.createElement('button',{onClick:()=>{setEditF({...s,total:String(s.total),subtotal:String(s.subtotal||s.total),taxAmt:String(s.taxAmt||0),notes:s.notes||''});setEditingSale(s.id);},title:'Edit',style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:'4px',fontSize:16,marginLeft:4}},'✏️'),React.createElement('button',{onClick:()=>{if(confirm('Delete this transaction? This cannot be undone.'))setSales(prev=>prev.filter(x=>x.id!==s.id));},title:'Delete transaction',style:{background:'none',border:'none',cursor:'pointer',color:MUT,padding:'4px',fontSize:16,marginLeft:4}},'🗑️'))))))),
     refunds.length>0&&React.createElement('div',{style:{marginTop:20,padding:14,background:REDLT,borderRadius:10}},React.createElement('div',{style:{fontSize:13,fontWeight:800,color:RED,marginBottom:8}},'Refunds: '+f$(refunds.reduce((s,r)=>s+r.total,0))),refunds.map(r=>React.createElement('div',{key:r.id,style:{display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',color:MUT}},fDate(r.date)+' · '+r.notes,React.createElement('span',{style:{color:RED,fontWeight:700}},'−'+f$(r.total))))),
     refunding&&React.createElement(RefundModal,{sale:refunding,onRefund:doRefund,onClose:()=>setRefunding(null)}),
     editingSale&&React.createElement(Modal,{title:'Edit Sale',onClose:()=>setEditingSale(null),width:460},
@@ -394,6 +450,7 @@ function SalesPage({sales,setSales,showToast}){
       React.createElement(Fld,{label:'Subtotal ($)'},React.createElement(Inp,{value:editF.subtotal||'',onChange:v=>setEditF(p=>({...p,subtotal:v})),type:'number'})),
       React.createElement(Fld,{label:'Tax Amount ($)'},React.createElement(Inp,{value:editF.taxAmt||'',onChange:v=>setEditF(p=>({...p,taxAmt:v})),type:'number'})),
       React.createElement(Fld,{label:'Payment Method'},React.createElement(Sel,{value:editF.payMethod||'Cash',onChange:v=>setEditF(p=>({...p,payMethod:v})),options:PAY_METHODS})),
+      React.createElement(Fld,{label:'Event'},React.createElement(Sel,{value:editF.eventId||'',onChange:v=>{const e=events.find(x=>x.id===v);setEditF(p=>({...p,eventId:e?e.id:null,eventName:e?e.name:null,eventLocation:e?(e.location||null):null,locIdx:e?(e.locIdx||0):p.locIdx,taxLocation:e?(MN_LOCATIONS[e.locIdx||0]||MN_LOCATIONS[0]).name:p.taxLocation}));},options:[{value:'',label:'No event'},...events.map(e=>({value:e.id,label:e.name+(e.date?' · '+fDate(e.date):'')}))]})),
       React.createElement(Fld,{label:'Notes'},React.createElement(Inp,{value:editF.notes||'',onChange:v=>setEditF(p=>({...p,notes:v}))})),
       React.createElement('div',{style:{display:'flex',gap:10,marginTop:16}},
         React.createElement(Btn,{onClick:()=>setEditingSale(null),color:MUT,outline:true,style:{flex:1,justifyContent:'center'},ch:'Cancel'}),
@@ -1876,7 +1933,7 @@ function ProfitSharePage({employees,inventoryLots,products,profitSharePayments,s
         React.createElement(Btn,{onClick:recordPayment,size:'lg',style:{flex:2,justifyContent:'center'},ch:'✓ Record Payment'}))));
 }
 
-const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'profitshare',l:'Profit Share',e:'💰'},{id:'settings',l:'Settings',e:'⚙️'}];
+const NAV=[{id:'pos',l:'POS',e:'🛒'},{id:'products',l:'Products',e:'📦'},{id:'sales',l:'Sales',e:'🧾'},{id:'events',l:'Events',e:'📅'},{id:'coupons',l:'Coupons',e:'🏷️'},{id:'giftcards',l:'Vouchers',e:'🎁'},{id:'expenses',l:'Expenses',e:'💸'},{id:'reports',l:'Reports',e:'📊'},{id:'import',l:'Import',e:'⬆️'},{id:'mileage',l:'Mileage',e:'🚗'},{id:'rawgoods',l:'Raw Goods',e:'📦'},{id:'timekeeping',l:'Time',e:'⏱️'},{id:'inventory',l:'Inventory',e:'📋'},{id:'profitshare',l:'Profit Share',e:'💰'},{id:'settings',l:'Settings',e:'⚙️'}];
 const MORE_IDS=['coupons','giftcards','expenses','reports','import','mileage','rawgoods','timekeeping','inventory','profitshare','settings'];
 
 function Sidebar({page,setPage,cartCount,sqOk}){
@@ -1958,7 +2015,7 @@ function App(){
   const completeSale=useCallback((saleData)=>{
     const cartItems=saleData.items||cart;
     const now=new Date();const saleTime=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-    setSales(prev=>[...prev,{id:uid(),date:today(),saleTime,items:cartItems,subtotal:saleData.subtotal,taxAmt:saleData.taxAmt,discount:saleData.couponDisc||0,total:saleData.total,payMethod:saleData.method,notes:saleData.notes||'',squareTxId:saleData.squareTxId||null}]);
+    setSales(prev=>[...prev,{id:uid(),date:today(),saleTime,items:cartItems,subtotal:saleData.subtotal,taxAmt:saleData.taxAmt,discount:saleData.couponDisc||0,total:saleData.total,payMethod:saleData.method,notes:saleData.notes||'',squareTxId:saleData.squareTxId||null,eventId:saleData.eventId||null,eventName:saleData.eventName||null,eventLocation:saleData.eventLocation||null,locIdx:saleData.locIdx!=null?saleData.locIdx:null,taxLocation:saleData.taxLocation||null}]);
     setProducts(prev=>prev.map(p=>{const ci=cartItems.find(i=>i.id===p.id);return ci?{...p,stock:Math.max(0,p.stock-ci.qty)}:p;}));
     // FIFO lot consumption for profit sharing tracking
     setInventoryLots(prev=>{
@@ -1984,7 +2041,7 @@ function App(){
   if(!ready)return React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:CREAM}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:48}},'🐔'),React.createElement('div',{style:{fontSize:16,color:MUT,marginTop:8,fontFamily:"'Libre Baskerville',serif"}},'Loading Hen House & Co...')));
   const sqOk=!!settings.squareAppId;
   const props={products,setProducts,sales,setSales,expenses,setExpenses,coupons,setCoupons,giftCards,setGiftCards,mileage,setMileage,savedRoutes,setSavedRoutes,rawGoods,setRawGoods,timeEntries,setTimeEntries,employees,setEmployees,inventoryLots,setInventoryLots,profitSharePayments,setProfitSharePayments,settings,setSettings,showToast,isMobile:mobile};
-  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'inventory':return React.createElement(InventoryPage,props);case 'profitshare':return React.createElement(ProfitSharePage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
+  const renderPage=()=>{switch(page){case 'pos':return React.createElement(POSPage,{...props,cart,setCart,onCheckout:()=>setCheckout(true)});case 'products':return React.createElement(ProductsPage,props);case 'sales':return React.createElement(SalesPage,props);case 'events':return React.createElement(EventsPage,props);case 'coupons':return React.createElement(CouponsPage,props);case 'giftcards':return React.createElement(GiftCardsPage,props);case 'expenses':return React.createElement(ExpensesPage,props);case 'reports':return React.createElement(ReportsPage,props);case 'import':return React.createElement(ImportPage,props);case 'mileage':return React.createElement(MileagePage,props);case 'rawgoods':return React.createElement(RawGoodsPage,props);case 'timekeeping':return React.createElement(TimekeepingPage,props);case 'inventory':return React.createElement(InventoryPage,props);case 'profitshare':return React.createElement(ProfitSharePage,props);case 'settings':return React.createElement(SettingsPage,props);default:return null;}};
   return React.createElement('div',{style:{display:'flex',height:'100vh',background:CREAM,fontFamily:'Nunito,system-ui,sans-serif',overflow:'hidden'}},
     !mobile&&React.createElement(Sidebar,{page,setPage,cartCount,sqOk}),
     React.createElement('main',{style:{flex:1,overflow:'auto',display:'flex',flexDirection:'column',paddingBottom:mobile?64:0}},
@@ -1996,7 +2053,7 @@ function App(){
     React.createElement('div',{style:{fontSize:8,color:'rgba(255,255,255,.7)',letterSpacing:2,textTransform:'uppercase',fontFamily:"'Helvetica Neue',Arial,sans-serif"}},'Blooming Prairie, MN · Est. 2016'))),
       React.createElement('div',{style:{flex:1,overflow:'auto'}},renderPage())),
     mobile&&React.createElement(BottomNav,{page,setPage,cartCount,sqOk}),
-    checkout&&cart.length>0&&React.createElement(CheckoutModal,{cart,settings,coupons,giftCards,onComplete:d=>{completeSale({...d,items:cart});setCart([]);setCheckout(false);},onClose:()=>setCheckout(false)}),
+    checkout&&cart.length>0&&React.createElement(CheckoutModal,{cart,settings,coupons,giftCards,events:settings.events||[],dayEvent:(()=>{const t=today();const last=[...sales].reverse().find(x=>x.date===t&&!x.isRefund&&(x.eventId||x.locIdx!=null));return last?{eventId:last.eventId||'',locIdx:last.locIdx||0}:null;})(),onAddEvent:e=>setSettings(p=>({...p,events:[...(p.events||[]).filter(x=>x.id!==e.id),e]})),onComplete:d=>{completeSale({...d,items:cart});setCart([]);setCheckout(false);},onClose:()=>setCheckout(false)}),
     toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}),
     pendingSq&&React.createElement(SquareConfirmModal,{pendingSq,onConfirm:async()=>{const{pendingId,sale}=pendingSq;completeSale({...sale,method:'Card (Square)'});await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);showToast('Square payment recorded!');},onCancel:async()=>{const{pendingId}=pendingSq;await sd('hhc_pnd_'+pendingId);await sd('hhc_pnd_latest');setPendingSq(null);}}));
 }
